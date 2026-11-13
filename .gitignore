@@ -5,3 +5,6 @@ TestResults/
 artifacts/
 *.user
 /dist/
+
+/WarframeAutocaster-Portable-win-x64.zip*
+/WarframeAutocaster-Editable-win-x64.zip*
