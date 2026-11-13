@@ -101,6 +101,13 @@ internal static class Native
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool AttachThreadInput(uint currentThread, uint targetThread, [MarshalAs(UnmanagedType.Bool)] bool attach);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ClipCursor(nint rectangle);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsWindowVisible(nint window);
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

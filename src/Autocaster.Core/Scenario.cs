@@ -10,19 +10,34 @@ public enum MouseButton { Left = 1, Right = 2, Middle = 4, X1 = 5, X2 = 6 }
 
 public enum InputKey : ushort
 {
-    Mouse4 = 5, Mouse5 = 6,
-    Backspace = 8, Tab = 9, Enter = 13, Pause = 19, CapsLock = 20, Escape = 27, Space = 32,
+    MouseLeft = 1, MouseRight = 2, MouseMiddle = 4, Mouse4 = 5, Mouse5 = 6,
+    Cancel = 3, Backspace = 8, Tab = 9, Clear = 12, Enter = 13, Pause = 19, CapsLock = 20,
+    Kana = 21, Junja = 23, Final = 24, Hanja = 25, Escape = 27, ImeConvert = 28, ImeNonConvert = 29,
+    ImeAccept = 30, ImeModeChange = 31, Space = 32,
     PageUp = 33, PageDown = 34, End = 35, Home = 36, Left = 37, Up = 38, Right = 39, Down = 40,
-    PrintScreen = 44, Insert = 45, Delete = 46,
+    Select = 41, Print = 42, Execute = 43, PrintScreen = 44, Insert = 45, Delete = 46, Help = 47,
     D0 = 48, D1, D2, D3, D4, D5, D6, D7, D8, D9,
     A = 65, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
-    LeftWindows = 91, RightWindows = 92, Menu = 93,
+    LeftWindows = 91, RightWindows = 92, Menu = 93, Sleep = 95,
     Num0 = 96, Num1, Num2, Num3, Num4, Num5, Num6, Num7, Num8, Num9,
-    Multiply, Add, Subtract = 109, Decimal, Divide,
+    Multiply, Add, Separator, Subtract, Decimal, Divide,
     F1 = 112, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24,
     NumLock = 144, ScrollLock = 145, LeftShift = 160, RightShift, LeftCtrl, RightCtrl, LeftAlt, RightAlt,
+    BrowserBack = 166, BrowserForward, BrowserRefresh, BrowserStop, BrowserSearch, BrowserFavorites, BrowserHome,
+    VolumeMute, VolumeDown, VolumeUp, MediaNextTrack, MediaPreviousTrack, MediaStop, MediaPlayPause,
+    LaunchMail, SelectMedia, LaunchApplication1, LaunchApplication2,
     Semicolon = 186, Plus, Comma, Minus, Period, Slash, Tilde,
-    OpenBracket = 219, Backslash, CloseBracket, Quote, Oem102 = 226
+    OpenBracket = 219, Backslash, CloseBracket, Quote, Oem8, Oem102 = 226,
+    Attn = 246, CrSel, ExSel, EraseEof, Play, Zoom, Pa1 = 253, OemClear,
+    WheelUp = 256, WheelDown
+}
+
+public static class InputKeys
+{
+    public static bool IsMouse(InputKey key) => key is InputKey.MouseLeft or InputKey.MouseRight or
+        InputKey.MouseMiddle or InputKey.Mouse4 or InputKey.Mouse5 or InputKey.WheelUp or InputKey.WheelDown;
+
+    public static bool IsKeyboard(InputKey key) => !IsMouse(key) && Enum.IsDefined(key);
 }
 
 public readonly record struct Timing(int FixedMs = 0, bool Random = false, int MinMs = 0, int MaxMs = 0, int StepMs = 100)

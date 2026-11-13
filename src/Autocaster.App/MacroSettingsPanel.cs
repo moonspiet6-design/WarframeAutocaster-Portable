@@ -16,6 +16,7 @@ internal sealed class MacroSettingsPanel : Form
     private readonly TextBox _name;
     private readonly CheckBox _enabled;
     private readonly CheckBox _step;
+    private readonly CheckBox _useHotkey;
     private readonly Button _shortcut;
     private readonly Button _reset;
     private readonly MacroHudSettings _hud;
@@ -66,9 +67,16 @@ internal sealed class MacroSettingsPanel : Form
         fields.Children.Add(hotkeyField);
         general.Children.Add(fields);
 
+        var toggles = new WrapPanel { Margin = new(0, 0, 0, 5) };
         _step = Toggle("Step mode", macro.Step);
-        _step.Margin = new(0, 0, 0, 5);
-        general.Children.Add(_step);
+        _step.Margin = new(0, 0, 12, 0);
+        _useHotkey = Toggle("Direct hotkey", macro.UseHotkey);
+        _shortcut.IsEnabled = macro.UseHotkey;
+        _useHotkey.Checked += (_, _) => _shortcut.IsEnabled = true;
+        _useHotkey.Unchecked += (_, _) => _shortcut.IsEnabled = false;
+        toggles.Children.Add(_step);
+        toggles.Children.Add(_useHotkey);
+        general.Children.Add(toggles);
 
         var resetRow = new DockPanel();
         var error = Ui.Text("", 12);
@@ -132,7 +140,7 @@ internal sealed class MacroSettingsPanel : Form
                 {
                     Key = _key.Key, Modifiers = (uint)_key.Modifiers,
                     Enabled = _enabled.IsChecked == true, Step = _step.IsChecked == true,
-                    UseHotkey = true
+                    UseHotkey = _useHotkey.IsChecked == true
                 }
             });
         });
@@ -155,6 +163,7 @@ internal sealed class MacroSettingsPanel : Form
             }
             _enabled.IsChecked = macro.Enabled;
             _step.IsChecked = macro.Step;
+            _useHotkey.IsChecked = macro.UseHotkey;
             _hud.Refresh(macro);
         }
         finally { _refreshing = false; }

@@ -23,6 +23,21 @@ public static class OverlayWindow
         Native.SetWindowLongW(window, ExtendedStyle, (style | ToolWindow | NoActivate | Transparent) & ~AppWindow);
     }
 
+    public static bool TryActivate(nint window)
+    {
+        if (Native.GetForegroundWindow() == window || Native.SetForegroundWindow(window))
+            return Native.GetForegroundWindow() == window;
+
+        uint current = Native.GetCurrentThreadId();
+        uint foreground = Native.GetWindowThreadProcessId(Native.GetForegroundWindow(), out _);
+        if (foreground == 0 || current == foreground || !Native.AttachThreadInput(current, foreground, true))
+            return false;
+        try { return Native.SetForegroundWindow(window) && Native.GetForegroundWindow() == window; }
+        finally { Native.AttachThreadInput(current, foreground, false); }
+    }
+
+    public static void ReleasePointer() => Native.ClipCursor(0);
+
     public static bool Place(nint window, System.Drawing.Rectangle bounds) =>
         Native.SetWindowPos(window, new nint(-1), bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x0010);
 }

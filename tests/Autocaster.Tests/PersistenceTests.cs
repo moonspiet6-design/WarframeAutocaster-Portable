@@ -6,19 +6,15 @@ namespace Autocaster.Tests;
 public sealed class PersistenceTests
 {
     [Fact]
-    public async Task BundledMacrosImportAndCompile()
+    public async Task BundledExampleImportsAndCompiles()
     {
-        var folder = Path.Combine(AppContext.BaseDirectory, "bundled");
-        var (profiles, errors) = await new ProfileService(folder).LoadAll();
-        Assert.Empty(errors);
-        Assert.Equal(new[] { "nidus aol", "nidus ol" }, profiles.Select(profile => profile.Name));
-        var compiler = new ScenarioCompiler(new());
-        foreach (var profile in profiles)
-        {
-            Assert.True(profile.Macro?.Step);
-            Assert.Null(profile.Index);
-            Assert.NotEmpty(compiler.Compile(new MacroSteps().Plan(profile)).Events);
-        }
+        var profile = await ProfileService.Import(Path.Combine(AppContext.BaseDirectory, "demo.json"));
+        var plan = new ScenarioCompiler(new()).Compile(profile);
+        Assert.Equal(4, plan.Events.Length);
+        var delay = Assert.Single(plan.Timings, value => value.Random);
+        Assert.InRange(delay.ValueMs, 2000, 4000);
+        Assert.Equal(0, delay.ValueMs % 100);
+        Assert.Equal(180 + delay.ValueMs, plan.DurationMs);
     }
 
     [Fact]

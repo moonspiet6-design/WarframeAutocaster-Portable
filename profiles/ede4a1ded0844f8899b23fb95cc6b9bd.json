@@ -1195,8 +1195,9 @@
   "macro": {
     "key": "mouse5",
     "modifiers": 0,
-    "enabled": true,
+    "enabled": false,
     "step": true,
+    "useHotkey": true,
     "showStepHud": true,
     "showRathuumWaveSize": true,
     "stepHudPosition": {

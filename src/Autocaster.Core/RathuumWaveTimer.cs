@@ -149,7 +149,7 @@ public sealed class RathuumWaveTimer
         _trackingStarted ??= now;
         if (continuous && _conflict is null && _waveReconciled && _forecast is { } complete &&
             now > complete.LastRespawn.Latest && !(_candidateScore > _score))
-            StartWave(complete.LastRespawn.Latest, _score!.Value);
+            StartWave(complete.LastRespawn.Latest, _score);
 
         ObserveScore(now, rawScore, continuous);
         if (_score == 25)
@@ -158,11 +158,10 @@ public sealed class RathuumWaveTimer
             State = new(_wave, _baseline, _score, _kills.Count, RathuumWaveStatus.MatchComplete, "The match reached 25 points.");
             return null;
         }
-        if (_baseline is null)
+        bool allowFeedOnly = _options.FirstKillOnly && _options.StartAtCurrentScore;
+        if (_baseline is null && !allowFeedOnly)
         {
-            if (_options.FirstKillOnly && _options.StartAtCurrentScore)
-                ObserveFeed(feedEvents, visibleExecutioners, feedUsable);
-            State = new(0, null, _score, _kills.Count, RathuumWaveStatus.AwaitingBaseline,
+            State = new(0, null, _score, 0, RathuumWaveStatus.AwaitingBaseline,
                 _options.StartAtCurrentScore ? "Waiting for a stable team score." : "Waiting for a stable zero score.");
             return null;
         }
@@ -177,7 +176,7 @@ public sealed class RathuumWaveTimer
                 Recalculate();
         }
 
-        if (_options.FirstKillOnly && _options.StartAtCurrentScore && _forecast is null &&
+        if (allowFeedOnly && _forecast is null &&
             _scoreSlots.Count == 0 && _kills.Count > 0)
             TryEstimateFirstKillWithoutScoreChange(now);
 
@@ -195,13 +194,15 @@ public sealed class RathuumWaveTimer
             State = new(_wave, _baseline, _score, _kills.Count, RathuumWaveStatus.Expired, "The suggested launch time has passed.");
         else
             State = new(_wave, _baseline, _score, _kills.Count, RathuumWaveStatus.Ready,
-                forecast.UsedFirstKillWithoutScoreChange ? "Using a new executioner entry while the team score is unchanged." :
+                forecast.UsedFirstKillWithoutScoreChange
+                    ? (_score is null ? "Using a new executioner entry while the team score is unreadable." :
+                        "Using a new executioner entry while the team score is unchanged.") :
                 forecast.UsedFeedTimingForFirstKill ? "First-kill timing refined using the feed because the score interval was wide." :
                 forecast.UsedLateFeedMatching ? "Late names reconciled against the confirmed score." : null);
         return _forecast;
     }
 
-    private void StartWave(TimeSpan now, int baseline)
+    private void StartWave(TimeSpan now, int? baseline)
     {
         bool preserveEarlyFeed = _wave == 0 && _options.FirstKillOnly && _options.StartAtCurrentScore;
         _wave++;
@@ -265,6 +266,13 @@ public sealed class RathuumWaveTimer
         TimeSpan previous = _scoreLastSeen ?? _waveStarted;
         NoteVisibleScore(now);
         _candidateScore = null;
+
+        if (_wave > 0 && _baseline is null && old is null && next < 25)
+        {
+            // Attach the newly readable score without discarding a deadline already set by the feed.
+            _baseline = next;
+            return;
+        }
 
         if (next == 0 || seedCurrent)
         {
@@ -470,6 +478,11 @@ public sealed class RathuumWaveTimer
         if (launch <= now || launch >= respawn.Earliest)
             return;
 
+        if (_wave == 0)
+        {
+            _wave = 1;
+            _waveStarted = _trackingStarted ?? now;
+        }
         _forecast = new(_wave, respawn, respawn, new(launch, launch), 0, 0)
         {
             FirstKillConfirmedAt = first.Confirmed,

@@ -60,7 +60,7 @@ public sealed record NokkoOptions
     internal void Validate()
     {
         if (new[] { Mushroom2, Mushroom1, Roar, Fourth, Operator }.Any(key =>
-            !Enum.IsDefined(key) || key is InputKey.Mouse4 or InputKey.Mouse5))
+            !InputKeys.IsKeyboard(key)))
             throw new ScenarioException("Assign keyboard keys to all Nokko abilities.");
         if (Mushroom2Count is < 1 or > 12 || Mushroom1Count is < 1 or > 12)
             throw new ScenarioException("Each mushroom count must be between 1 and 12.");

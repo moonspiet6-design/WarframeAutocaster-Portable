@@ -18,4 +18,5 @@ if (!(Test-Path -LiteralPath $profileDestination)) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'profiles') -Destination $profileDestination -Recurse
 }
 
-Write-Output (Join-Path $OutputDirectory 'WarframeAutocaster.Portable.exe')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination $OutputDirectory -Force
+Write-Output (Join-Path $OutputDirectory 'WarframeAutocaster.exe')

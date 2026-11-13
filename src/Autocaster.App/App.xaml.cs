@@ -24,16 +24,18 @@ public partial class App : Application
         CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("en-US");
         _captureProtection = new();
         base.OnStartup(e);
-        bool smoke = e.Args.Contains("--editor-test", StringComparer.Ordinal);
-        string folder = AppContext.BaseDirectory;
+        bool editorTest = e.Args.Contains("--editor-test", StringComparer.Ordinal);
+        bool smoke = editorTest || e.Args.Contains("--smoke-test", StringComparer.Ordinal);
+        string folder = smoke ? Path.Combine(Path.GetTempPath(), $"AutocasterSmoke-{Guid.NewGuid():N}") :
+            AppContext.BaseDirectory;
         if (!smoke)
         {
-            _instance = new Mutex(false, @"Local\WarframeAutocaster.Portable");
+            _instance = new Mutex(false, @"Local\WarframeAutocaster");
             try { _ownsInstance = _instance.WaitOne(0); }
             catch (AbandonedMutexException) { _ownsInstance = true; }
             if (!_ownsInstance)
             {
-                MessageBox.Show("Warframe Autocaster Portable is already open.", "Warframe Autocaster Portable");
+                MessageBox.Show("Warframe Autocaster is already running. Use the editor hotkey or the tray icon.", "Warframe Autocaster");
                 Shutdown(1);
                 return;
             }
@@ -41,39 +43,71 @@ public partial class App : Application
 
         try
         {
-            var store = new ProfileService(Path.Combine(folder, "profiles"));
-            var loaded = await store.LoadAll();
-            List<ScenarioProfile> macros = [];
-            var warnings = loaded.Errors.ToList();
-            foreach (var profile in loaded.Profiles.Where(profile => profile.Macro is not null))
-            {
-                try { macros.Add(EditorConfig.Upgrade(profile with { Index = null })); }
-                catch (ScenarioException error) { warnings.Add($"{profile.Name}: {error.Message}"); }
-            }
-
-            if (smoke)
-            {
-                await PortableSmoke.Run(macros, warnings);
-                Shutdown(0);
-                return;
-            }
-
+            Directory.CreateDirectory(folder);
             string settingsPath = Path.Combine(folder, "settings.json");
             Preferences settings;
+            string? warning = null;
             try { settings = await Preferences.Load(settingsPath); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException)
             {
                 settings = new();
-                warnings.Add(error.Message);
+                warning = error.Message;
             }
             ApplyTheme(settings.Dark);
             WindowCaptureProtection.SetEnabled(settings.CaptureProtection);
             string logs = Path.Combine(folder, "logs");
             var log = new FileRunLog(logs) { Detailed = settings.DetailedLog };
-            log.Write("Portable application started.");
+            log.Write("Application started.");
+            if (_captureProtection.InstallationError is not 0)
+                log.Write($"Could not install the capture exclusion hook ({_captureProtection.InstallationError}).");
+            if (editorTest)
+                await VerifyBundledProfiles();
+            var store = new ProfileService(Path.Combine(folder, "profiles"));
+            var loaded = await store.LoadAll();
             var clock = new WindowsDeadlineClock { PrecisionMicroseconds = settings.SpinMicroseconds };
             var sharedInput = new SharedInputBackend(new SendInputBackend());
-            var main = new MainWindow(sharedInput, clock, log, store, settings, settingsPath, logs, macros,
+            var engine = new ScenarioExecutionEngine(new(new()), new(clock), new(sharedInput), log);
+            if (smoke)
+            {
+                int exitCode = 0;
+                try
+                {
+                    if (editorTest)
+                    {
+                        await EditorSmoke.Run(store, settingsPath);
+                        log.Write("Background editor test passed.");
+                    }
+                    else
+                    {
+                        await WindowsSmoke.Run(engine, clock, store);
+                        log.Write("Local SendInput, safe stop, and shortcut capture tests passed.");
+                    }
+                }
+                catch (Exception error)
+                {
+                    File.WriteAllText(Path.Combine(folder, "failure.txt"), error.ToString());
+                    exitCode = 3;
+                }
+                finally
+                {
+                    await engine.Stop();
+                    clock.Dispose();
+                    await log.DisposeAsync();
+                }
+                Shutdown(exitCode);
+                return;
+            }
+
+            List<ScenarioProfile> configs = [];
+            var warnings = loaded.Errors.ToList();
+            if (warning is not null)
+                warnings.Add(warning);
+            foreach (var profile in loaded.Profiles)
+            {
+                try { configs.Add(EditorConfig.Upgrade(profile)); }
+                catch (ScenarioException error) { warnings.Add($"{profile.Name}: {error.Message}"); }
+            }
+            var main = new MainWindow(engine, sharedInput, clock, log, store, settings, settingsPath, logs, configs,
                 string.Join(" | ", warnings));
             MainWindow = main;
             main.ShowOnStartup(e.Args.Contains("--show-no-activate", StringComparer.Ordinal));
@@ -81,19 +115,32 @@ public partial class App : Application
         catch (Exception error)
         {
             if (smoke)
-                File.WriteAllText(Path.Combine(folder, "editor-test-failure.txt"), error.ToString());
+                File.WriteAllText(Path.Combine(folder, "failure.txt"), error.ToString());
             else
-                MessageBox.Show(error.Message, "Warframe Autocaster Portable", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(error.ToString(), "Warframe Autocaster", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(2);
         }
     }
 
-    internal static bool MainBuildIsOpen()
+    private static async System.Threading.Tasks.Task VerifyBundledProfiles()
     {
-        if (!Mutex.TryOpenExisting(@"Local\WarframeAutocaster", out var main))
-            return false;
-        main.Dispose();
-        return true;
+        string folder = Path.Combine(AppContext.BaseDirectory, "profiles");
+        if (!Directory.Exists(folder))
+            throw new InvalidDataException("The portable profiles folder is missing.");
+        var loaded = await new ProfileService(folder).LoadAll();
+        if (loaded.Errors.Count > 0)
+            throw new InvalidDataException(string.Join(Environment.NewLine, loaded.Errors));
+
+        var compiler = new ScenarioCompiler(new(new Random(0)));
+        foreach (string name in new[] { "nidus aol", "nidus ol", "Nokko Index" })
+        {
+            var stored = loaded.Profiles.FirstOrDefault(profile => profile.Name == name)
+                ?? throw new InvalidDataException($"Bundled config missing: {name}.");
+            var profile = EditorConfig.Upgrade(stored);
+            var plan = profile.Index?.Nokko is not null ? compiler.PreviewNokko(profile) : compiler.Compile(profile);
+            if (plan.Events.IsEmpty)
+                throw new InvalidDataException($"Bundled config has no planned inputs: {name}.");
+        }
     }
 
     internal static void ApplyTheme(bool dark)

@@ -564,6 +564,65 @@ internal static class EditorForms
         return form;
     }
 
-    internal static bool HasMovementMap(ScenarioProfile profile) =>
+    internal static Form ProfileForm(ScenarioProfile profile, Action<ScenarioProfile> apply, Action? openMovementMap = null)
+    {
+        var form = new Form();
+        form.Heading("Config settings");
+        var name = form.TextField("Name", profile.Name);
+        var index = profile.Index ?? new();
+        var gap = index.Nokko is { } rotation ? form.CompactTime("Cast gap", rotation.CastGap) : null;
+        var choice = new ComboBox { MinHeight = 27, Margin = new(0, 0, 0, 7) };
+        choice.Items.Add("Manual");
+        choice.Items.Add("Always stay");
+        choice.Items.Add("Stay until timer, then cash in");
+        choice.SelectedIndex = (int)index.Vote;
+        form.AddField("Index round choice", choice);
+
+        var extraction = new Form();
+        var after = extraction.Time("Cash in at the next vote after", index.ExtractAfter, hours: true);
+        extraction.Edited += form.MarkDirty;
+        extraction.Visibility = index.Vote == IndexVoteMode.ExtractOnTimer ? Visibility.Visible : Visibility.Collapsed;
+        form.Children.Add(extraction);
+        choice.SelectionChanged += (_, _) =>
+        {
+            extraction.Visibility = choice.SelectedIndex == (int)IndexVoteMode.ExtractOnTimer
+                ? Visibility.Visible : Visibility.Collapsed;
+            form.MarkDirty();
+        };
+
+        var loop = index.Nokko is null ? form.Check("Loop", profile.Mode == CycleMode.Infinite) : null;
+        AddMovementMap(form, profile, openMovementMap);
+        form.SetApply(() =>
+        {
+            var vote = (IndexVoteMode)choice.SelectedIndex;
+            var options = index with
+            {
+                Vote = vote,
+                ExtractAfter = vote == IndexVoteMode.ExtractOnTimer ? after() : index.ExtractAfter,
+                Nokko = index.Nokko is { } nokko && gap is not null ? nokko with { CastGap = gap() } : null
+            };
+            apply(profile with
+            {
+                Name = name().Trim(),
+                Mode = loop is null ? profile.Mode : loop.IsChecked == true ? CycleMode.Infinite :
+                    profile.Mode == CycleMode.Count ? CycleMode.Count : CycleMode.Once,
+                Index = options.WatchesRound || profile.Index is not null ? options : null
+            });
+            index = options;
+        });
+        return form;
+    }
+
+    internal static bool HasMovementMap(ScenarioProfile profile) => profile.Index?.Nokko is null &&
         profile.Actions.Where(action => action.Kind == ActionKind.MouseMovement).Take(2).Count() == 2;
+
+    private static void AddMovementMap(Form form, ScenarioProfile profile, Action? open)
+    {
+        if (open is not null && HasMovementMap(profile))
+        {
+            var button = Ui.ToolbarButton("Movement map", open);
+            button.HorizontalAlignment = HorizontalAlignment.Left;
+            form.Children.Add(button);
+        }
+    }
 }

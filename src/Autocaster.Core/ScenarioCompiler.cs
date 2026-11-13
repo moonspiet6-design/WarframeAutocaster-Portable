@@ -137,10 +137,10 @@ public sealed class ScenarioCompiler(TimingEngine timing)
 
         switch (action.Kind)
         {
-            case ActionKind.KeyPress or ActionKind.KeyDown or ActionKind.KeyUp or ActionKind.KeyHold when !IsKeyboardKey(action.Key):
+            case ActionKind.KeyPress or ActionKind.KeyDown or ActionKind.KeyUp or ActionKind.KeyHold when !InputKeys.IsKeyboard(action.Key):
                 throw new ScenarioException("Select a supported key.");
             case ActionKind.Combination when action.Keys.IsDefaultOrEmpty || action.Keys.Length > 8 ||
-                 action.Keys.Any(key => !IsKeyboardKey(key)) || action.Keys.Distinct().Count() != action.Keys.Length:
+                 action.Keys.Any(key => !InputKeys.IsKeyboard(key)) || action.Keys.Distinct().Count() != action.Keys.Length:
                 throw new ScenarioException("A legacy chord must contain 1 to 8 distinct keys.");
             case ActionKind.MouseClick when !Enum.IsDefined(action.Button):
                 throw new ScenarioException("Select a supported mouse button.");
@@ -168,8 +168,6 @@ public sealed class ScenarioCompiler(TimingEngine timing)
         }
     }
 
-    private static bool IsKeyboardKey(InputKey key) =>
-        key is not (InputKey.Mouse4 or InputKey.Mouse5) && Enum.IsDefined(key);
 
     public ExecutionPlan Compile(ScenarioProfile profile, bool includeCycleGap = false, CancellationToken cancellation = default)
     {

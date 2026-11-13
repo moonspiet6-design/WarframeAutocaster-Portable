@@ -31,9 +31,10 @@ internal static class SettingsWindow
         }
 
         var hotkeys = Tab("Hotkeys");
-        hotkeys.Label("Click a field, then press a key or shortcut.");
+        hotkeys.Label("Click a field, then press a key, click a mouse button, or scroll.");
         var recorder = new InputRecorder(window, capture);
-        var editorShortcut = recorder.AddShortcut(hotkeys, "Show / hide editor", settings.EditorHotkey);
+        var editorShortcut = recorder.AddShortcut(hotkeys, "Show / hide editor", settings.GetEditorHotkey());
+        var toggleRun = recorder.AddShortcut(hotkeys, "Start / stop", settings.Hotkeys[0]);
         var resetSteps = recorder.AddShortcut(hotkeys, "Reset macro steps", settings.MacroResetHotkey);
 
         var waveSize = recorder.AddShortcut(hotkeys, "Toggle Rathuum wave size (5 / 8)", settings.RathuumWaveHotkey);
@@ -44,7 +45,8 @@ internal static class SettingsWindow
         var dark = general.Check("Dark theme", settings.Dark);
         var protection = general.Check("Capture protection", settings.CaptureProtection);
         var startInTray = general.Check("Start in tray", settings.StartInTray);
-        var restore = general.Check("Restore the last macro", settings.RestoreProfile);
+        var restore = general.Check("Restore the last config", settings.RestoreProfile);
+        var activation = general.Check("Activate Warframe when starting", settings.ActivateGame);
 
         var timing = Tab("Timing");
         var hold = timing.Seconds("Default timed hold (s)", settings.DefaultHoldMs, 0, TimingEngine.MaxMilliseconds);
@@ -52,7 +54,7 @@ internal static class SettingsWindow
         var threshold = timing.Seconds("Late event threshold (s)", settings.Timing.ThresholdMs, 1, 60000);
         var late = timing.Choice("Late events", settings.Timing.Policy == LatePolicy.SkipWheel ? LatePolicy.Dispatch : settings.Timing.Policy,
             new[] { LatePolicy.Dispatch, LatePolicy.Stop }, value => value == LatePolicy.Dispatch
-                ? "Send without shifting the schedule" : "Stop the macro");
+                ? "Send without shifting the schedule" : "Stop the scenario");
         var spin = timing.Seconds("Precise wait before an event (s)", settings.SpinMicroseconds, 0, 500, ticksPerSecond: 1_000_000);
 
         var logging = Tab("Logs");
@@ -98,10 +100,10 @@ internal static class SettingsWindow
                 var edited = settings with
                 {
                     Dark = dark.IsChecked == true, CaptureProtection = protection.IsChecked == true, StartInTray = startInTray.IsChecked == true,
-                    RestoreProfile = restore.IsChecked == true,
+                    RestoreProfile = restore.IsChecked == true, ActivateGame = activation.IsChecked == true,
                     DetailedLog = detailed.IsChecked == true, DefaultHoldMs = hold(), DefaultWaitMs = delay(),
                     SpinMicroseconds = spin(), Timing = new(late(), threshold()),
-                    EditorHotkey = editorShortcut(), MacroResetHotkey = resetSteps(), RathuumWaveHotkey = waveSize(),
+                    Hotkeys = [toggleRun()], EditorHotkey = editorShortcut(), MacroResetHotkey = resetSteps(), RathuumWaveHotkey = waveSize(),
                     PlaybackResetHotkey = playbackReset()
                 };
                 edited.Validate();

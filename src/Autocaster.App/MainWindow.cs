@@ -29,18 +29,31 @@ internal sealed class MainWindow : Window
     private const double SelectionGutter = 16;
     private readonly EditorViewModel _editor = new();
     private readonly InputRecorder _recorder;
+    private readonly ScenarioExecutionEngine _engine;
     private readonly MacroRunner _macros;
     private int _rathuumWaveSize = 5;
     private int ReadRathuumWaveSize() => Volatile.Read(ref _rathuumWaveSize);
+    private Button? _scenarioButton;
+    private Button? _macrosButton;
     private Button? _configButton;
+    private Button? _wheelButton;
+    private Window? _wheelSettings;
+    private MacroWheelWindow? _wheel;
+    private HoldKey? _wheelKey;
+    private readonly WindowTargetService _wheelTarget = new();
+    private MacroWheelSlot?[] _wheelSlots = new MacroWheelSlot?[MacroWheelView.SlotCount];
+    private static readonly Hotkey WheelShortcut = new(0, InputKey.Q);
     private Grid? _editorWorkspace;
     private readonly ColumnDefinition _macroSettingsColumn = new() { Width = new(0), MaxWidth = 358 };
     private readonly Border _macroInspector = new() { Visibility = Visibility.Collapsed, VerticalAlignment = VerticalAlignment.Top };
     private MacroSettingsPanel? _macroSettings;
     private MovementMap? _movementMap;
+    private Guid? _scenarioId;
     private Guid? _macroId;
     private Guid? _emptyProfileId;
     private Guid? _deletingProfile;
+    private readonly object _pointerGate = new();
+    private bool _scenarioUsesPointer;
     private string? _macroWarning;
     private readonly WindowsDeadlineClock _clock;
     private readonly FileRunLog _log;
@@ -50,10 +63,16 @@ internal sealed class MainWindow : Window
     private readonly List<ScenarioProfile> _profiles;
     private readonly ProfilePicker _profilePicker = new();
     private readonly ListBox _actions = new() { SelectionMode = SelectionMode.Extended };
+    private readonly ContentControl _profileDetails = new();
+    private readonly ContentControl _indexDetails = new();
     private readonly TextBlock _progress = Ui.Text("");
     private readonly TextBlock _stepCount = Ui.Text("", 12);
     private readonly TextBlock _saveStatus = Ui.Text("", 12);
     private readonly TextBlock _macroStatus = Ui.Text("", 12);
+    private Button? _addStep;
+    private readonly NokkoQueue _nokkoQueue = new();
+    private readonly TextBlock _nokkoPlanLabel = Ui.Text("Cycle preview", 12);
+    private Form? _indexSettings;
     private readonly TextBlock _emptyHint = Ui.Text("Add a step to start");
     private readonly TextBlock _notice = Ui.Text("");
     private static readonly TimeSpan ActiveRefresh = TimeSpan.FromMilliseconds(16);
@@ -61,12 +80,12 @@ internal sealed class MainWindow : Window
     private static readonly TimeSpan IdleHudRefresh = TimeSpan.FromMilliseconds(85);
     private readonly DispatcherTimer _refresh = new() { Interval = IdleRefresh };
     private readonly DispatcherTimer _hudRefresh = new() { Interval = IdleHudRefresh };
-    private readonly DispatcherTimer _instanceWatch = new() { Interval = TimeSpan.FromMilliseconds(500) };
-    private bool _mainBuildOpen;
     private readonly WindowTargetService _hudTarget = new();
     private MacroHudWindow? _hud;
+    private IndexHudWindow? _indexHud;
     private MacroHudPlacementWindow? _hudPlacement;
     private bool _hudUnavailable;
+    private bool _indexHudUnavailable;
     private readonly DispatcherTimer _autosave = new() { Interval = TimeSpan.FromMilliseconds(850) };
     private Preferences _settings;
     private HotkeyService? _hotkeys;
@@ -110,9 +129,10 @@ internal sealed class MainWindow : Window
     private string? _hotkeyWarning;
     private string _message;
 
-    public MainWindow(IInputBackend input, WindowsDeadlineClock clock, FileRunLog log, ProfileService store,
+    public MainWindow(ScenarioExecutionEngine engine, IInputBackend input, WindowsDeadlineClock clock, FileRunLog log, ProfileService store,
         Preferences settings, string settingsPath, string logs, IReadOnlyList<ScenarioProfile> profiles, string warning)
     {
+        _engine = engine;
         _macros = new(input, log, Report, ReadRathuumWaveSize);
         _clock = clock;
         _log = log;
@@ -122,7 +142,7 @@ internal sealed class MainWindow : Window
         _logs = logs;
         _profiles = [.. profiles];
         _message = warning;
-        Title = "Warframe Autocaster · Portable";
+        Title = "Warframe Autocaster · Alpha";
         Topmost = true;
         ShowInTaskbar = false;
         SetResourceReference(BackgroundProperty, "EditorBackground");
@@ -144,10 +164,9 @@ internal sealed class MainWindow : Window
         _actions.SelectionChanged += ActionSelected;
         _profilePicker.SelectionChanged += async (_, _) => await PickProfile();
         _profilePicker.RemoveRequested += async id => await DeleteProfile(id);
-        _profilePicker.AddRequested += async () => await AddProfile();
+        _profilePicker.AddRequested += async nokko => await AddProfile(nokko);
         _refresh.Tick += (_, _) => RefreshStatus();
         _hudRefresh.Tick += (_, _) => RefreshHud();
-        _instanceWatch.Tick += (_, _) => CheckMainBuild();
         _autosave.Tick += async (_, _) =>
         {
             _autosave.Stop();
@@ -170,9 +189,10 @@ internal sealed class MainWindow : Window
         };
         PreviewKeyDown += HandleEditorKeys;
 
-        var profile = settings.RestoreProfile ? _profiles.Find(p => p.Id == settings.LastProfile) : null;
-        profile ??= _profiles.FirstOrDefault(p => p.Macro?.Enabled == true) ?? _profiles.FirstOrDefault();
-        Open(profile ?? CreateProfile(), profile is not null, empty: profile is null);
+        var profile = settings.RestoreProfile ? _profiles.Find(p => p.Id == settings.LastProfile && p.Macro is null) : null;
+        profile ??= _profiles.FirstOrDefault(p => p.Macro is null);
+        Open(profile ?? (ScenarioProfile.Create("Config 1") with { BetweenCycles = Timing.Fixed(0) }),
+            profile is not null, empty: profile is null);
     }
 
     private void Build()
@@ -216,9 +236,18 @@ internal sealed class MainWindow : Window
         navigation.SetResourceReference(Border.BorderBrushProperty, "EditorLine");
         DockPanel.SetDock(navigation, Dock.Top);
         root.Children.Add(navigation);
+        var modes = new StackPanel { Orientation = Orientation.Horizontal };
+        _scenarioButton = Ui.ToolbarButton("Scenario", async () => await SwitchMode(macro: false));
+        _macrosButton = Ui.ToolbarButton("Macros", async () => await SwitchMode(macro: true));
+        _scenarioButton.Margin = new(0, 0, 3, 5);
+        modes.Children.Add(_scenarioButton);
+        modes.Children.Add(_macrosButton);
+        commands.Children.Add(modes);
         commands.Children.Add(_profilePicker);
-        _configButton = Ui.ToolbarButton("Macro settings", ToggleProfileDetails);
+        _configButton = Ui.ToolbarButton("Config settings", ToggleProfileDetails);
         commands.Children.Add(_configButton);
+        _wheelButton = Ui.ToolbarButton("Q menu", OpenMacroWheelSettings);
+        commands.Children.Add(_wheelButton);
 
         var status = new DockPanel();
         foreach (var label in new[] { _saveStatus, _progress, _macroStatus })
@@ -272,7 +301,11 @@ internal sealed class MainWindow : Window
             _insertAfter = Selected?.Id;
             addMenu.IsOpen = true;
         };
-        var steps = Ui.Header("Steps", add);
+        _nokkoPlanLabel.Margin = new(0, 0, 0, 5);
+        _nokkoPlanLabel.VerticalAlignment = VerticalAlignment.Center;
+        _nokkoPlanLabel.Visibility = Visibility.Collapsed;
+        _nokkoPlanLabel.SetResourceReference(TextBlock.ForegroundProperty, "EditorMuted");
+        var steps = Ui.Header("Steps", add, _nokkoPlanLabel);
         var title = (TextBlock)steps.Children[^1];
         steps.Children.RemoveAt(steps.Children.Count - 1);
         DockPanel.SetDock(title, Dock.Left);
@@ -289,6 +322,25 @@ internal sealed class MainWindow : Window
         steps.Children.Add(count);
         DockPanel.SetDock(steps, Dock.Top);
         list.Children.Add(steps);
+        _addStep = add;
+        list.Children.Insert(0, DetailsPanel(_indexDetails, 168));
+        list.Children.Add(DetailsPanel(_profileDetails));
+
+        static Border DetailsPanel(ContentControl details, double maxHeight = 270)
+        {
+            var panel = new Border { Child = Ui.Scroll(details), Padding = new(10, 2, 10, 2),
+                MaxHeight = maxHeight, CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1),
+                Margin = new(0, 0, 0, 7), Visibility = Visibility.Collapsed };
+            panel.SetResourceReference(Border.BackgroundProperty, "EditorChrome");
+            panel.SetResourceReference(Border.BorderBrushProperty, "EditorLine");
+            panel.SetBinding(VisibilityProperty, new System.Windows.Data.Binding(nameof(ContentControl.HasContent))
+            {
+                Source = details, Converter = new BooleanToVisibilityConverter()
+            });
+            DockPanel.SetDock(panel, Dock.Top);
+            return panel;
+        }
+
         _actions.SetResourceReference(ItemsControl.ItemContainerStyleProperty, "StepRow");
         _actions.Background = Brushes.Transparent;
         _actions.BorderThickness = new Thickness(0);
@@ -305,7 +357,7 @@ internal sealed class MainWindow : Window
         };
         _actions.ContextMenuOpening += (_, args) =>
         {
-            if (_capturingInput || _dragPreview is not null)
+            if (_capturingInput || IsNokko || _dragPreview is not null)
             {
                 args.Handled = true;
                 return;
@@ -341,7 +393,7 @@ internal sealed class MainWindow : Window
                 (Ui.Ancestor<Form>(source) is not null || Ui.Ancestor<System.Windows.Controls.Primitives.ScrollBar>(source) is not null))
                 return;
             _dragOrigin = args.GetPosition(_actions);
-            bool gutter = _dragOrigin.X < SelectionGutter;
+            bool gutter = _dragOrigin.X < SelectionGutter && !IsNokko;
             var row = gutter ? null : RowAt(args.OriginalSource);
             if (row is GroupRow group && Keyboard.Modifiers == ModifierKeys.None)
             {
@@ -350,8 +402,15 @@ internal sealed class MainWindow : Window
                 return;
             }
             _dragSource = (row as ActionRow)?.Id;
+            if (IsNokko)
+                _dragSource = row?.Id;
             if (_dragSource is Guid id && _shown?.Id == id && Keyboard.Modifiers == ModifierKeys.None)
                 _collapseOnClick = id;
+            if (IsNokko)
+            {
+                _dragSource = null;
+                return;
+            }
             if ((_dragSource is null || (Keyboard.Modifiers & ModifierKeys.Shift) != 0) && _marquee?.Begin(args, gutter) == true)
             {
                 _dragSource = null;
@@ -671,7 +730,9 @@ internal sealed class MainWindow : Window
             RefreshRecordingTarget();
             RefreshPicker();
             ConfigureMacroHotkeys();
-            var macro = _editor.Profile.Macro!;
+            var macro = _editor.Profile.Macro;
+            var index = _editor.Profile.Index;
+            bool isNokko = IsNokko;
             if (MapOpen)
             {
                 if (EditorForms.HasMovementMap(_editor.Profile))
@@ -679,7 +740,20 @@ internal sealed class MainWindow : Window
                 else
                     CloseMovementMap();
             }
-            _macroStatus.Text = $"{new Hotkey((HotkeyModifiers)macro.Modifiers, macro.Key)}  ·  {(macro.Enabled ? (macro.Step ? "Step mode" : "Enabled") : "Off")}";
+            if (_addStep is not null)
+                _addStep.Visibility = isNokko ? Visibility.Collapsed : Visibility.Visible;
+            _nokkoPlanLabel.Visibility = isNokko ? Visibility.Visible : Visibility.Collapsed;
+            if (_indexSettings is { Dirty: false } && !_applyingDraft)
+                SetIndexSettingsOpen(isNokko);
+            _actions.SelectionMode = isNokko ? SelectionMode.Single : SelectionMode.Extended;
+            _macroStatus.Text = macro is null
+                ? isNokko ? index!.Vote switch
+                {
+                    IndexVoteMode.Stay => "Auto stay",
+                    IndexVoteMode.ExtractOnTimer => "Timed cash in",
+                    _ => "Manual vote"
+                } : _editor.Profile.Mode == CycleMode.Infinite ? "Loop on" : ""
+                : $"{(macro.UseHotkey ? new Hotkey((HotkeyModifiers)macro.Modifiers, macro.Key).ToString() : "No direct hotkey")}  ·  {(macro.Enabled ? (macro.Step ? "Step mode" : "Enabled") : "Off")}";
             if (_editor.Dirty)
                 QueueAutosave();
         }
@@ -690,10 +764,13 @@ internal sealed class MainWindow : Window
         }
     }
 
-    private IReadOnlyList<StepRow> VisibleRows => _editor.DisplayRows;
+    private bool IsNokko => _editor.Profile.Index?.Nokko is not null;
+    private IReadOnlyList<StepRow> VisibleRows => IsNokko ? _nokkoQueue.Rows : _editor.DisplayRows;
 
     private void RefreshRows(bool refreshEditor = true)
     {
+        if (IsNokko && (!RunActive || _nokkoQueue.Rows.Count == 0))
+            _nokkoQueue.Refresh(_editor.Profile, null, 0, _shown as NokkoRow);
         var rows = VisibleRows;
         var shown = _actions.ItemsSource as ObservableCollection<StepRow>;
         if (shown is null || !shown.SequenceEqual(rows))
@@ -733,10 +810,10 @@ internal sealed class MainWindow : Window
                 _actions.SelectedItems.Add(row);
             _ignoreSelection = false;
         }
-        _stepCount.Text = _editor.Rows.Count.ToString();
+        _stepCount.Text = (IsNokko ? _nokkoQueue.Count : _editor.Rows.Count).ToString();
         _emptyHint.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (refreshEditor && !_applyingDraft && _dragPreview is null)
-            ShowDetails(_shown?.Id == Editable?.Id ? Editable : null);
+            ShowDetails(_shown?.Id == Editable?.Id ? Editable : null, _profileDetails.HasContent);
     }
 
     private StepRow? Selected => _actions.SelectedItem as StepRow;
@@ -771,7 +848,7 @@ internal sealed class MainWindow : Window
             (_dragSource is not null && Keyboard.Modifiers == ModifierKeys.None) ||
             WpfMouse.RightButton == MouseButtonState.Pressed ||
             args.OriginalSource != _actions ||
-            Editable?.Id == _shown?.Id)
+            (Editable?.Id == _shown?.Id && (IsNokko || !_profileDetails.HasContent)))
             return;
         if (!ApplyDraft())
         {
@@ -793,10 +870,37 @@ internal sealed class MainWindow : Window
             CloseMovementMap();
             return;
         }
-        SetMacroSettingsOpen(_macroSettings is null);
+        if (_editor.Profile.Macro is not null)
+        {
+            SetMacroSettingsOpen(_macroSettings is null);
+            return;
+        }
+        if (IsNokko)
+        {
+            SetIndexSettingsOpen(_indexSettings is null);
+            return;
+        }
+        bool open = !_profileDetails.HasContent;
+        _ignoreSelection = true;
+        _actions.UnselectAll();
+        _ignoreSelection = false;
+        ShowDetails(null, open);
     }
 
     private bool MapOpen => _movementMap?.Visibility == Visibility.Visible;
+
+    private void SetIndexSettingsOpen(bool open)
+    {
+        var previous = _indexSettings;
+        if (previous is not null)
+            previous.Edited -= QueueAutosave;
+        _indexSettings = open ? NokkoEditor.SettingsForm(() => _editor.Profile, _editor.EditProfile, previous) : null;
+        if (_indexSettings is not null)
+            _indexSettings.Edited += QueueAutosave;
+        _indexDetails.Content = _indexSettings;
+        RefreshSettingsButton();
+        RefreshSaveStatus();
+    }
 
     private void SetMacroSettingsOpen(bool open)
     {
@@ -843,7 +947,7 @@ internal sealed class MainWindow : Window
         _editorWorkspace.Visibility = Visibility.Visible;
     }
 
-    private void ShowDetails(StepRow? row)
+    private void ShowDetails(StepRow? row, bool profileSettings = false)
     {
         if (_form is not null)
             _form.Edited -= QueueAutosave;
@@ -852,13 +956,16 @@ internal sealed class MainWindow : Window
         _shown = row;
         _form = row switch
         {
+            NokkoRow nokko => NokkoEditor.StepForm(nokko.Block, () => _editor.Profile, _editor.EditProfile),
             ActionRow action => EditorForms.ActionForm(action.Action, _recorder, _editor.Update, ArmMouseRecording,
-                inline: true, macro: true, timer: profile.Macro?.Timer,
+                inline: true, macro: profile.Macro is not null, timer: profile.Macro?.Timer,
                 followsHudGate: profile.Macro?.Step == true && profile.Actions.TakeWhile(item => item.Id != action.Id)
                     .LastOrDefault(item => item.Enabled) is { } previous && ScenarioAction.IsHudGate(previous.Kind)),
             GroupRow group when _renameGroup == group.Id => GroupNameForm(group),
+            _ when profileSettings && !IsNokko => EditorForms.ProfileForm(profile, _editor.EditProfile, OpenMovementMap),
             _ => null
         };
+        _profileDetails.Content = row is null ? _form : null;
         row?.SetEditor(_form);
         if (_form is not null)
         {
@@ -875,7 +982,7 @@ internal sealed class MainWindow : Window
     }
 
     private void RefreshSettingsButton() =>
-        _configButton?.SetResourceReference(StyleProperty, _macroSettings is not null
+        _configButton?.SetResourceReference(StyleProperty, _macroSettings is not null || _indexSettings is not null || _profileDetails.HasContent
             ? "ActiveToolbarAction" : "ToolbarAction");
 
     private void BeginRename(Guid id)
@@ -911,7 +1018,7 @@ internal sealed class MainWindow : Window
         return form;
     }
 
-    private bool HasDraft => _form?.Dirty == true || _macroSettings?.Dirty == true;
+    private bool HasDraft => _form?.Dirty == true || _macroSettings?.Dirty == true || _indexSettings?.Dirty == true;
 
     private void RefreshSaveStatus() =>
         _saveStatus.Text = _editor.Dirty || HasDraft ? "Unsaved changes" : EmptyProfile ? "" : "Saved";
@@ -941,9 +1048,14 @@ internal sealed class MainWindow : Window
 
     private bool ApplyDraft()
     {
+        var previousGap = _editor.Profile.Index?.Nokko?.CastGap;
+        bool applied;
         _applyingDraft = true;
-        try { return _form?.TryApply() != false && _macroSettings?.TryApply() != false; }
+        try { applied = _indexSettings?.TryApply() != false && _form?.TryApply() != false && _macroSettings?.TryApply() != false; }
         finally { _applyingDraft = false; }
+        if (applied && _shown is NokkoRow && previousGap != _editor.Profile.Index?.Nokko?.CastGap)
+            ShowDetails(_shown);
+        return applied;
     }
 
     private void Select(Guid? id)
@@ -1015,7 +1127,7 @@ internal sealed class MainWindow : Window
         }
         if (args.Key == System.Windows.Input.Key.Delete && Keyboard.Modifiers == ModifierKeys.None)
             action = () => Modify(DeleteActions);
-        if (action is null)
+        if (action is null || (_editor.Profile.Index?.Nokko is not null && args.Key is not (System.Windows.Input.Key.Z or System.Windows.Input.Key.Y)))
             return;
         args.Handled = true;
         action();
@@ -1026,35 +1138,52 @@ internal sealed class MainWindow : Window
         _renameGroup = null;
         CloseMovementMap();
         SetMacroSettingsOpen(false);
+        if (_indexSettings is not null)
+            SetIndexSettingsOpen(false);
         _newMouseAction = null;
         _mouseRecording?.Cancel();
         _emptyProfileId = empty ? profile.Id : null;
-        _macroId = profile.Id;
+        bool isMacro = profile.Macro is not null;
+        if (isMacro)
+            _macroId = profile.Id;
+        else
+            _scenarioId = profile.Id;
+        _scenarioButton?.SetResourceReference(StyleProperty, isMacro ? "ToolbarAction" : "ActiveToolbarAction");
+        _macrosButton?.SetResourceReference(StyleProperty, isMacro ? "ActiveToolbarAction" : "ToolbarAction");
+        if (_configButton is not null)
+            _configButton.Content = isMacro ? "Macro settings" : profile.Index?.Nokko is not null ? "Index settings" : "Config settings";
         _autosave.Stop();
         ShowDetails(null);
         _ignoreSelection = true;
         _actions.UnselectAll();
         _ignoreSelection = false;
         _editor.Load(profile, saved || empty);
-        _log.Write($"Opened macro “{profile.Name}”.");
+        if (IsNokko)
+            SetIndexSettingsOpen(true);
+        _log.Write($"Opened config “{profile.Name}”.");
         RefreshPicker();
     }
 
     private void RefreshPicker()
     {
         var active = _editor.Profile;
+        bool macro = active.Macro is not null;
+        if (_wheelButton is not null)
+            _wheelButton.Visibility = macro ? Visibility.Visible : Visibility.Collapsed;
         _ignoreSelection = true;
-        var rows = _profiles.Where(p => p.Id != active.Id).Append(active)
+        var rows = _profiles.Where(p => p.Id != active.Id && (p.Macro is not null) == macro).Append(active)
             .OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(p =>
             {
                 bool empty = p.Id == active.Id && EmptyProfile;
-                string name = empty ? "No macros"
+                string name = empty ? (macro ? "No macros" : "No configs")
                     : p.Name + (p.Id == active.Id && _editor.Dirty ? " *" : "");
                 return _profilePicker.Row(p.Id, name, empty);
             })
             .ToList();
         rows.Add(_profilePicker.AddRow());
+        if (!macro)
+            rows.Add(_profilePicker.AddRow(nokko: true));
         // A focused item may disappear on refresh. Keep focus inside the picker so its popup stays open.
         if (_profilePicker.IsDropDownOpen && (_profilePicker.IsKeyboardFocusWithin ||
             Keyboard.FocusedElement is ComboBoxItem focused && ItemsControl.ItemsControlFromItemContainer(focused) == _profilePicker))
@@ -1066,23 +1195,38 @@ internal sealed class MainWindow : Window
 
     private bool EmptyProfile => _emptyProfileId == _editor.Profile.Id && !_editor.Dirty;
 
-    private ScenarioProfile CreateProfile()
+    private async Task SwitchMode(bool macro)
     {
+        if ((_editor.Profile.Macro is not null) == macro)
+            return;
+        var remembered = macro ? _macroId : _scenarioId;
+        var selected = _profiles.Find(item => item.Id == remembered && (item.Macro is not null) == macro)
+            ?? _profiles.FirstOrDefault(item => (item.Macro is not null) == macro);
+        await SwitchConfig(selected ?? CreateProfile(macro), selected is not null, empty: selected is null);
+    }
+
+    private ScenarioProfile CreateProfile(bool macro)
+    {
+        string prefix = macro ? "Macro" : "Config";
         int number = 1;
-        while (_profiles.Any(item => item.Name == $"Macro {number}") ||
-            (!EmptyProfile && _editor.Profile.Name == $"Macro {number}"))
+        while (_profiles.Any(item => item.Name == $"{prefix} {number}") ||
+            (!EmptyProfile && _editor.Profile.Name == $"{prefix} {number}"))
             number++;
-        return ScenarioProfile.Create($"Macro {number}") with { Macro = new(), BetweenCycles = Timing.Fixed(0) };
+        return ScenarioProfile.Create($"{prefix} {number}") with
+        {
+            Macro = macro ? new() : null,
+            BetweenCycles = Timing.Fixed(0)
+        };
     }
 
     private async Task PickProfile()
     {
         if (_ignoreSelection || _switchingConfig || _profilePicker.SelectedItem is not ComboBoxItem item)
             return;
-        if (item.Tag is null)
+        if (item.Tag is null or true)
         {
             if (_profilePicker.IsDropDownOpen)
-                await AddProfile();
+                await AddProfile(item.Tag is true);
             else
                 RefreshPicker();
         }
@@ -1090,7 +1234,21 @@ internal sealed class MainWindow : Window
             await SwitchConfig(selected, true);
     }
 
-    private Task AddProfile() => SwitchConfig(CreateProfile(), saved: false);
+    private Task AddProfile(bool nokko)
+    {
+        if (!nokko)
+            return SwitchConfig(CreateProfile(_editor.Profile.Macro is not null), false);
+        const string name = "Nokko Index";
+        string unique = name;
+        for (int i = 2; _profiles.Any(profile => profile.Name == unique) || _editor.Profile.Name == unique; i++)
+            unique = $"{name} {i}";
+        var preset = ScenarioProfile.Create(unique) with
+        {
+            Index = new() { Vote = IndexVoteMode.Stay, Nokko = new() },
+            BetweenCycles = Timing.Fixed(0)
+        };
+        return SwitchConfig(preset, saved: false);
+    }
 
     private async Task SwitchConfig(ScenarioProfile selected, bool saved, bool empty = false)
     {
@@ -1099,7 +1257,7 @@ internal sealed class MainWindow : Window
         _switchingConfig = true;
         try
         {
-            if (await FlushAutosave() && !_editor.Dirty && !HasDraft)
+            if (await MayLeaveProfile() && !RunActive && !_editor.Dirty && !HasDraft)
                 Open(selected, saved, empty);
         }
         finally
@@ -1115,6 +1273,11 @@ internal sealed class MainWindow : Window
             return;
         var active = _editor.Profile;
         bool deletingActive = active.Id == id;
+        if (deletingActive && RunActive)
+        {
+            Report("Stop the scenario before deleting its config.");
+            return;
+        }
 
         _switchingConfig = true;
         _deletingProfile = id;
@@ -1129,10 +1292,17 @@ internal sealed class MainWindow : Window
             if (_profiles.Any(item => item.Id == id))
                 await _store.Delete(id);
             _profiles.RemoveAll(item => item.Id == id);
+            if (_settings.MacroWheelSlots.Contains(id))
+            {
+                _settings = _settings with { MacroWheelSlots = _settings.MacroWheelSlots
+                    .Select(slot => slot == id ? null : slot).ToImmutableArray() };
+                _settingsSave = SaveSettings(_settingsSave);
+            }
             if (deletingActive)
             {
-                var next = _profiles.FirstOrDefault();
-                Open(next ?? CreateProfile(), next is not null, empty: next is null);
+                bool macro = removed.Macro is not null;
+                var next = _profiles.FirstOrDefault(item => (item.Macro is not null) == macro);
+                Open(next ?? CreateProfile(macro), next is not null, empty: next is null);
             }
             ConfigureMacroHotkeys();
             if (removed.Macro is not null)
@@ -1150,6 +1320,18 @@ internal sealed class MainWindow : Window
             if (_editor.Dirty || HasDraft)
                 QueueAutosave();
         }
+    }
+
+    private bool RunActive => _engine.Status.State is RunState.Armed or RunState.Preparing or RunState.Running or RunState.Paused or RunState.Stopping;
+
+    private async Task<bool> MayLeaveProfile()
+    {
+        if (RunActive)
+        {
+            Report("Stop the scenario before switching configs.");
+            return false;
+        }
+        return await FlushAutosave();
     }
 
     private async Task<bool> FlushAutosave()
@@ -1194,10 +1376,73 @@ internal sealed class MainWindow : Window
         }
     }
 
+    private void ToggleRun()
+    {
+        if (_resettingPlayback)
+            return;
+        if (RunActive)
+        {
+            _ = _engine.Stop();
+            return;
+        }
+        if (_closing || _switchingConfig || _settingsPopup is not null || _hudPlacement is not null ||
+            (_editorOpen && !ApplyDraft()))
+            return;
+        if (_mouseRecording?.BlocksPlayback == true)
+        {
+            Report("Finish or cancel mouse recording before starting the scenario.");
+            return;
+        }
+        var scenario = _editor.Profile.Macro is null ? _editor.Profile : _profiles.Find(item => item.Id == _scenarioId && item.Macro is null);
+        if (scenario is null)
+            return;
+        _scenarioUsesPointer = UsesScenarioPointer(scenario);
+        if (_scenarioUsesPointer && _macros.UsesPointer)
+        {
+            Report("A macro is using the mouse.");
+            return;
+        }
+        _message = "";
+        ShowEditor(activate: false);
+        if (ForegroundWindow.IsOwnWindowActive)
+            _returnFocus.TryActivate();
+        if (_settings.ActivateGame && !WindowTargetService.GameHasFocus())
+            WindowTargetService.RequestGameActivation();
+        var target = scenario.Index is { WatchesRound: true } ? new IndexTarget(ReadRathuumWaveSize) : new LarvaTarget(ReadRathuumWaveSize);
+        if (!_engine.Start(Snapshot, target, _settings.Timing))
+        {
+            Report("The previous run is still stopping. Toggle the run shortcut again to retry releasing keys.");
+            return;
+        }
+        RefreshStatus();
+
+        ScenarioProfile Snapshot()
+        {
+            var current = _editor.Profile;
+            if (current.Id != scenario.Id)
+                current = scenario;
+            if (UsesScenarioPointer(current))
+            {
+                lock (_pointerGate)
+                {
+                    if (_macros.UsesPointer)
+                        throw new ScenarioException("A macro is using the mouse.");
+                    _scenarioUsesPointer = true;
+                }
+            }
+            return current;
+        }
+    }
+
+    private static bool UsesScenarioPointer(ScenarioProfile profile) =>
+        profile.Index is { Vote: not IndexVoteMode.Manual } || MacroRunner.NeedsPointer(profile);
+
     private void RefreshRecordingTarget() => _mouseRecording?.SelectAction(RecordingTarget());
 
     private Guid? RecordingTarget()
     {
+        if (IsNokko)
+            return null;
         var profile = _editor.Profile;
         var actions = profile.Actions;
         var selected = Editable?.Id;
@@ -1220,14 +1465,9 @@ internal sealed class MainWindow : Window
 
     private void ArmMouseRecording(Guid id)
     {
-        if (_mainBuildOpen)
+        if (RunActive || _macros.Active)
         {
-            Report("Close the main build before recording in Portable.");
-            return;
-        }
-        if (_macros.Active)
-        {
-            Report("Stop macro playback before recording mouse movement.");
+            Report("Stop the scenario and macros before recording mouse movement.");
             return;
         }
         if (ApplyDraft())
@@ -1272,7 +1512,7 @@ internal sealed class MainWindow : Window
 
         var popup = SettingsWindow.Create(this, _settings, _logs, SetInputCapture, edited =>
         {
-            if (!_mainBuildOpen && _hotkeys?.ConfigureGlobals(edited.EditorHotkey, edited.MacroResetHotkey, edited.RathuumWaveHotkey,
+            if (_hotkeys?.ConfigureGlobals(edited.GetHotkeys(), edited.MacroResetHotkey, edited.RathuumWaveHotkey,
                 edited.PlaybackResetHotkey) is { Count: > 0 } errors)
             {
                 _hotkeyWarning = string.Join(" | ", errors);
@@ -1304,26 +1544,29 @@ internal sealed class MainWindow : Window
     private void SetInputCapture(bool active)
     {
         _capturingInput = active;
-        _mouseRecording?.SuspendShortcut(active || _mainBuildOpen);
+        _mouseRecording?.SuspendShortcut(active);
         if (_hotkeys is null)
             return;
         if (active)
         {
             _hotkeys.Clear();
+            _wheelKey?.SetEnabled(false);
         }
         else
         {
-            RegisterGlobalHotkeys();
+            var errors = _hotkeys.Configure(_settings.GetHotkeys());
+            _hotkeyWarning = errors.Count == 0 ? null : string.Join(" | ", errors);
+            ConfigureMacroHotkeys();
         }
     }
 
     private void ConfigureMacroHotkeys()
     {
-        if (_hotkeys is null || _capturingInput || _mainBuildOpen)
+        if (_hotkeys is null || _capturingInput)
             return;
         var active = _editor.Profile;
         var shortcuts = MacroProfiles()
-            .Where(profile => profile.Macro is { Enabled: true })
+            .Where(profile => profile.Macro is { Enabled: true, UseHotkey: true })
             .ToDictionary(profile => profile.Id, profile => new Hotkey((HotkeyModifiers)profile.Macro!.Modifiers, profile.Macro.Key));
         var errors = _hotkeys.ConfigureMacros(shortcuts).ToList();
         if (_hotkeys.ConfigureMacroReset(_settings.MacroResetHotkey) is { } resetError)
@@ -1332,6 +1575,13 @@ internal sealed class MainWindow : Window
             errors.Add(waveError);
         if (_hotkeys.ConfigurePlaybackReset(_settings.PlaybackResetHotkey) is { } playbackError)
             errors.Add(playbackError);
+        _wheelSlots = MacroWheelSettings.Resolve(_settings.MacroWheelSlots, MacroProfiles());
+        bool wheelAssigned = _wheelSlots.Any(slot => slot is not null);
+        bool wheelConflict = wheelAssigned && IsWheelShortcutInUse();
+        if (wheelConflict)
+            errors.Add("Q menu is unavailable while Q is assigned to another shortcut.");
+        if (_wheelKey?.SetEnabled(wheelAssigned && !wheelConflict) is { } wheelError)
+            errors.Add($"Q menu could not register. {wheelError}");
         _macroWarning = errors.Count == 0 ? null : string.Join(" | ", errors);
         if (_backgroundReadersEnabled)
         {
@@ -1352,11 +1602,11 @@ internal sealed class MainWindow : Window
         var active = _editor.Profile;
         if (shortcut == new Hotkey(0, InputKey.Insert) || shortcut == _settings.RathuumWaveHotkey ||
             shortcut == _settings.PlaybackResetHotkey ||
-            _settings.EditorHotkey == shortcut ||
+            _settings.GetHotkeys().Contains(shortcut) ||
             _profiles.Where(profile => profile.Id != active.Id).Append(active).Any(profile =>
-                profile.Macro is { Enabled: true } macro && new Hotkey((HotkeyModifiers)macro.Modifiers, macro.Key) == shortcut))
+                profile.Macro is { Enabled: true, UseHotkey: true } macro && new Hotkey((HotkeyModifiers)macro.Modifiers, macro.Key) == shortcut))
             return $"{shortcut} is already assigned or reserved.";
-        if (!_mainBuildOpen && _hotkeys?.ConfigureMacroReset(shortcut) is { } error)
+        if (_hotkeys?.ConfigureMacroReset(shortcut) is { } error)
             return error;
         _settings = _settings with { MacroResetHotkey = shortcut };
         ConfigureMacroHotkeys();
@@ -1371,10 +1621,59 @@ internal sealed class MainWindow : Window
             .Concat(active.Macro is null || EmptyProfile ? [] : [active]);
     }
 
+    private bool IsWheelShortcutInUse() =>
+        _settings.GetHotkeys().Contains(WheelShortcut) || _settings.MacroResetHotkey == WheelShortcut ||
+        _settings.RathuumWaveHotkey == WheelShortcut || _settings.PlaybackResetHotkey == WheelShortcut ||
+        MacroProfiles().Any(profile => profile.Macro is { Enabled: true, UseHotkey: true, Key: InputKey.Q, Modifiers: 0 });
+
+    private void OpenMacroWheelSettings()
+    {
+        if (_wheelSettings is { } existing)
+        {
+            existing.Activate();
+            return;
+        }
+        if (!ApplyDraft())
+            return;
+        var profiles = MacroProfiles().OrderBy(profile => profile.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+        var window = MacroWheelSettings.Create(this, _settings.MacroWheelSlots, profiles, IsWheelShortcutInUse(), (slot, macro) =>
+        {
+            _settings = _settings with { MacroWheelSlots = _settings.MacroWheelSlots.SetItem(slot, macro) };
+            ConfigureMacroHotkeys();
+            _settingsSave = SaveSettings(_settingsSave);
+        });
+        _wheelSettings = window;
+        window.Closed += (_, _) => _wheelSettings = null;
+        window.Show();
+    }
+
+    private bool CanOpenMacroWheel() =>
+        !_closing && !_capturingInput && !_resettingPlayback && !RunActive && !_macros.Active &&
+        _hudPlacement is null && _mouseRecording?.BlocksPlayback != true && _wheelTarget.TryArm();
+
+    private void ShowMacroWheel()
+    {
+        if (_wheelKey?.IsHeld != true || !CanOpenMacroWheel() || !_wheelTarget.TryGetFocusedClientBounds(out var bounds))
+            return;
+        var game = ForegroundWindow.CaptureExternal();
+        _wheel ??= new();
+        if (!_wheel.Open(bounds, game, _wheelSlots))
+            Report("Could not open the Q menu over Warframe.");
+    }
+
+    private async Task RunMacroWheelChoice()
+    {
+        if (_wheel?.Finish(select: true) is not Guid id)
+            return;
+        for (int attempt = 0; attempt < 5 && !_wheelTarget.HasFocus(); attempt++)
+            await Task.Delay(15);
+        if (_wheelTarget.HasFocus() && _wheel?.IsVisible != true)
+            TriggerMacro(id);
+    }
+
     private void TriggerMacro(Guid id)
     {
-        if (_closing || _resettingPlayback || _hudPlacement is not null || _deletingProfile == id ||
-            _mouseRecording?.BlocksPlayback == true || App.MainBuildIsOpen())
+        if (_closing || _resettingPlayback || _hudPlacement is not null || _deletingProfile == id || _mouseRecording?.BlocksPlayback == true)
             return;
         bool selected = _editor.Profile.Id == id;
         if (selected && !ApplyDraft())
@@ -1382,29 +1681,38 @@ internal sealed class MainWindow : Window
         var macro = selected ? _editor.Profile : _profiles.Find(profile => profile.Id == id);
         if (macro is not null)
         {
-            _macros.Trigger(macro, _settings);
+            lock (_pointerGate)
+                _macros.Trigger(macro, _settings, RunActive && _scenarioUsesPointer);
             RefreshHud();
         }
     }
 
     private void RefreshHud()
     {
-        if (_mainBuildOpen || _closing || _hudPlacement is not null)
+        if (_closing || _hudPlacement is not null)
             return;
         var active = _editor.Profile;
-        var items = _hudUnavailable ? [] : MacroProfiles()
+        var status = _engine.Status;
+        var index = !_indexHudUnavailable && status.State is RunState.Running or RunState.Preparing or RunState.Paused
+            ? status.IndexHud : null;
+        var items = _hudUnavailable ? [] : _profiles.Where(profile => profile.Id != active.Id && profile.Macro is not null).Append(active)
             .Select(_macros.ReadHud).OfType<MacroHudSnapshot>()
             .Where(item => item.Step.Total > 0 || item.NextMovement is not null || item.Countdown is not null).ToArray();
-        if (items.Length == 0 || !_hudTarget.TryGetFocusedClientBounds(out var bounds))
+        if ((items.Length == 0 && index is null) || !_hudTarget.TryGetFocusedClientBounds(out var bounds))
         {
             if (_hudRefresh.Interval != IdleHudRefresh)
                 _hudRefresh.Interval = IdleHudRefresh;
             _hud?.Hide();
+            _indexHud?.Hide();
             return;
         }
-        var refresh = items.Any(item => item.Countdown is { ShowsMilliseconds: true } || item.PreLarvaMs.HasValue) ? ActiveRefresh : IdleHudRefresh;
+        var refresh = index is { InOperator: true, RotationFrozenAtMs: null } ||
+            items.Any(item => item.Countdown is { ShowsMilliseconds: true } || item.PreLarvaMs.HasValue) ? ActiveRefresh : IdleHudRefresh;
         if (_hudRefresh.Interval != refresh)
             _hudRefresh.Interval = refresh;
+        if (items.Length == 0)
+            _hud?.Hide();
+        else
         {
             var direction = items.FirstOrDefault(item => item.MacroId == _macros.LastTriggered && item.NextMovement is not null)
                 ?? items.FirstOrDefault(item => item.MacroId == active.Id && item.NextMovement is not null)
@@ -1415,6 +1723,19 @@ internal sealed class MainWindow : Window
                 _hud.Hide();
                 _hudUnavailable = true;
                 Report("Could not show the capture-protected macro HUD.");
+            }
+        }
+        if (index is null)
+            _indexHud?.Hide();
+        else
+        {
+            _indexHud ??= new();
+            int defaultBadges = _hudUnavailable ? 0 : items.Count(item => item.Step.Total > 0 && item.StepPosition is null);
+            if (!_indexHud.Present(bounds, index, _engine.MillisecondsSince(index.Started), defaultBadges))
+            {
+                _indexHud.Hide();
+                _indexHudUnavailable = true;
+                Report("Could not show the capture-protected Index HUD.");
             }
         }
     }
@@ -1447,6 +1768,7 @@ internal sealed class MainWindow : Window
             _editor.EditProfile(current with { Macro = updated });
         }, ReadRathuumWaveSize());
         _hud?.Hide();
+        _indexHud?.Hide();
         _hudRefresh.Interval = IdleHudRefresh;
         _hudPlacement = placement;
         if (!placement.Present(bounds))
@@ -1470,19 +1792,20 @@ internal sealed class MainWindow : Window
         Hide();
     }
 
-    private Task StopRuns() => _macros.StopAll();
+    private Task StopRuns() => Task.WhenAll(_engine.Stop(), _macros.StopAll());
 
     private async Task ResetPlayback()
     {
         if (_closing || _capturingInput || _resettingPlayback)
             return;
         _resettingPlayback = true;
+        _wheel?.Finish(select: false);
         try
         {
-            var stopped = _macros.ResetPlayback();
+            var stopped = Task.WhenAll(_engine.Stop(), _macros.ResetPlayback());
             RefreshHud();
             await stopped;
-            Report(_macros.HasUnreleasedInput
+            Report(_engine.HasUnreleasedInput || _macros.HasUnreleasedInput
                 ? "Playback reset. Some held inputs could not be released. Press reset again to retry."
                 : "Playback and timers reset.");
             RefreshHud();
@@ -1495,7 +1818,7 @@ internal sealed class MainWindow : Window
         try
         {
             await previous;
-            await (_settings with { LastProfile = _macroId, Placement = CapturePlacement() }).Save(_settingsPath);
+            await (_settings with { LastProfile = _scenarioId, Placement = CapturePlacement() }).Save(_settingsPath);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -1505,21 +1828,58 @@ internal sealed class MainWindow : Window
 
     private void RefreshStatus()
     {
-        var refresh = _macros.Active ? ActiveRefresh : IdleRefresh;
+        var status = _engine.Status;
+        var refresh = _macros.Active || status.State is RunState.Armed or RunState.Preparing or RunState.Running ? ActiveRefresh : IdleRefresh;
         if (_refresh.Interval != refresh)
             _refresh.Interval = refresh;
-        var macroHud = _macros.ReadHud(_editor.Profile);
-        if (_editor.Highlight(macroHud?.ActiveActionId) is { } highlighted && !MapOpen)
+        Guid? activeAction = null;
+        var macroHud = _editor.Profile.Macro is null ? null : _macros.ReadHud(_editor.Profile);
+        if (macroHud is not null)
+            activeAction = macroHud.ActiveActionId;
+        ExecutionPlan? nokkoPlan = null;
+        if (status.State == RunState.Running && status.Plan is { } currentPlan && currentPlan.ScenarioId == _editor.Profile.Id)
+        {
+            if (IsNokko)
+                nokkoPlan = currentPlan;
+            double elapsed = _engine.MillisecondsSince(status.Start);
+            activeAction = status.WaitingForHud?.ActionId ?? currentPlan.ActionAt(elapsed);
+            if (activeAction is null && status.SentThrough > 0)
+            {
+                var last = currentPlan.Events[status.SentThrough - 1];
+                if (elapsed - last.OffsetMs < 40)
+                    activeAction = last.ActionId;
+            }
+        }
+        if (IsNokko && (nokkoPlan is not null || !RunActive))
+        {
+            if (_nokkoQueue.Refresh(_editor.Profile, nokkoPlan, status.SentThrough, _shown as NokkoRow))
+                RefreshRows(refreshEditor: false);
+            _nokkoPlanLabel.Text = nokkoPlan is null ? "Cycle preview" : "Current plan";
+        }
+        else
+            _nokkoQueue.ClearHighlight();
+        if (_editor.Highlight(activeAction) is { } highlighted && !MapOpen)
             _actions.ScrollIntoView(highlighted);
         if (Stopwatch.GetElapsedTime(_lastFocusSample).TotalMilliseconds >= 500)
         {
             _gameFocus = WindowTargetService.GameHasFocus();
             _lastFocusSample = Stopwatch.GetTimestamp();
         }
-        _progress.Text = _gameFocus ? "Warframe focused" : "Warframe not focused";
-        var waiting = macroHud?.WaitingForHud;
-        var wave = macroHud?.RathuumWave;
-        var preLarvaMs = macroHud?.PreLarvaMs;
+        _progress.Text = status.State switch
+        {
+            RunState.Armed => "Waiting for Warframe focus",
+            RunState.Paused => "Paused",
+            _ => _gameFocus ? "Warframe focused" : "Warframe not focused"
+        };
+        if (status.Cycle > 0 && status.State == RunState.Running)
+            _progress.Text = _editor.Profile.Index?.Nokko is { } rotation
+                ? _nokkoQueue.ActiveTitle is { } step ? $"Running · {step}" : rotation.Enabled ? "Rotation running" : "Rotation off"
+                : $"{_progress.Text} · Cycle {status.Cycle}";
+        var waiting = _editor.Profile.Macro is null ? status.WaitingForHud : macroHud?.WaitingForHud;
+        var wave = _editor.Profile.Macro is null ? status.RathuumWave : macroHud?.RathuumWave;
+        double? preLarvaMs = macroHud?.PreLarvaMs;
+        if (_editor.Profile.Macro is null && status.WaitingForHud?.Rathuum?.FirstKillOnly == true && status.RathuumLaunchAt is long launch)
+            preLarvaMs = Math.Max(0, -_engine.MillisecondsSince(launch));
         if (waiting is { } hudGate)
         {
             _progress.Text = preLarvaMs is double remaining ? $"Pre-Larva in {TimingUnits.FormatCountdown(remaining)} s" :
@@ -1538,8 +1898,7 @@ internal sealed class MainWindow : Window
         }
         if (waiting?.Rathuum is null && _editor.Profile.Actions.FirstOrDefault(action => action.Enabled && action.Kind == ActionKind.RathuumKillFeed) is { } rathuum)
             _progress.Text += rathuum.Rathuum?.FirstKillOnly == true ? " · Rathuum: first kill" : $" · Rathuum: {ReadRathuumWaveSize()} kills";
-        _notice.Text = string.Join("  ·  ", new[] { _mainBuildOpen ? "Main build open · Portable hotkeys paused" : null,
-            _message, _hotkeyWarning, _macroWarning, _log.Error }
+        _notice.Text = string.Join("  ·  ", new[] { status.Message, _message, _hotkeyWarning, _macroWarning, _log.Error }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
         _notice.Visibility = _notice.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -1559,48 +1918,18 @@ internal sealed class MainWindow : Window
         OverlayWindow.ExcludeFromTaskSwitcher(hwnd);
         _source = HwndSource.FromHwnd(hwnd);
         _hotkeys = new HotkeyService(hwnd);
+        _wheelKey = new HoldKey(hwnd, InputKey.Q, CanOpenMacroWheel);
         _mouseRecording = new(hwnd, _hotkeys, Report, SaveMouseRecording, ShowRecordingIndicator);
-        _mainBuildOpen = App.MainBuildIsOpen();
-        _mouseRecording.SuspendShortcut(_mainBuildOpen);
         RefreshRecordingTarget();
         _source?.AddHook(HotkeyMessage);
-        RegisterGlobalHotkeys();
-        _hudRefresh.Start();
-        _instanceWatch.Start();
-    }
-
-    private void RegisterGlobalHotkeys()
-    {
-        if (_hotkeys is null || _capturingInput || _mainBuildOpen)
-            return;
-        var errors = _hotkeys.ConfigureGlobals(_settings.EditorHotkey, _settings.MacroResetHotkey,
-            _settings.RathuumWaveHotkey, _settings.PlaybackResetHotkey);
-        _hotkeyWarning = errors.Count == 0 ? null : string.Join(" | ", errors);
+        var errors = _hotkeys.Configure(_settings.GetHotkeys());
         ConfigureMacroHotkeys();
-    }
-
-    private void CheckMainBuild()
-    {
-        bool open = App.MainBuildIsOpen();
-        if (_closing || open == _mainBuildOpen)
-            return;
-        _mainBuildOpen = open;
-        if (open)
+        _hudRefresh.Start();
+        if (errors.Count > 0)
         {
-            _mouseRecording?.Cancel();
-            _mouseRecording?.SuspendShortcut(true);
-            _hotkeys?.Clear();
-            _hud?.Hide();
-            _macros.ConfigureRathuumWarmup(null);
-            _ = StopRuns();
+            _hotkeyWarning = string.Join(" | ", errors);
+            _log.Write(_hotkeyWarning);
         }
-        else
-        {
-            _mouseRecording?.SuspendShortcut(_capturingInput);
-            RefreshRecordingTarget();
-            RegisterGlobalHotkeys();
-        }
-        RefreshStatus();
     }
 
     private void ShowRecordingIndicator(bool recording)
@@ -1623,7 +1952,16 @@ internal sealed class MainWindow : Window
             _mouseRecording?.Read(lParam);
             return 0;
         }
-        if (message != HotkeyService.Message || _capturingInput || _mainBuildOpen || App.MainBuildIsOpen())
+        if (message == HoldKey.Message)
+        {
+            if (wParam == 1)
+                _ = Dispatcher.BeginInvoke(ShowMacroWheel, DispatcherPriority.Input);
+            else
+                _ = Dispatcher.BeginInvoke(async () => await RunMacroWheelChoice(), DispatcherPriority.Input);
+            handled = true;
+            return 0;
+        }
+        if (message != HotkeyService.Message || _capturingInput)
             return 0;
         if (_hotkeys?.TryGetMacro((int)wParam, lParam, out var macro) == true)
         {
@@ -1633,6 +1971,7 @@ internal sealed class MainWindow : Window
         }
         switch ((HotkeyAction)(int)wParam)
         {
+            case HotkeyAction.ToggleRun when _hotkeys?.IsMessageFor(HotkeyAction.ToggleRun, lParam) == true: Dispatcher.BeginInvoke(ToggleRun); break;
             case HotkeyAction.ResetMacroSteps when _hotkeys?.IsMessageFor(HotkeyAction.ResetMacroSteps, lParam) == true:
                 _ = Dispatcher.BeginInvoke(async () =>
                 {
@@ -1650,13 +1989,13 @@ internal sealed class MainWindow : Window
                 if (_mouseRecording is { } recording)
                     Dispatcher.BeginInvoke(() =>
                     {
-                        if (_macros.Active)
-                            Report("Stop macro playback before recording mouse movement.");
+                        if (RunActive || _macros.Active)
+                            Report("Stop the scenario and macros before recording mouse movement.");
                         else if (recording.Recording || ApplyDraft())
                             recording.Toggle();
                     });
                 break;
-            case HotkeyAction.ToggleEditor: Dispatcher.BeginInvoke(ToggleEditor, DispatcherPriority.Input); break;
+            case HotkeyAction.ToggleEditor when _hotkeys?.IsMessageFor(HotkeyAction.ToggleEditor, lParam) == true: Dispatcher.BeginInvoke(ToggleEditor, DispatcherPriority.Input); break;
             default: return 0;
         }
         handled = true;
@@ -1679,7 +2018,7 @@ internal sealed class MainWindow : Window
         _ = new WindowInteropHelper(this).EnsureHandle();
         _backgroundReadersEnabled = true;
         ConfigureMacroHotkeys();
-        if (!_mainBuildOpen && !showWithoutActivation && _settings.StartInTray && _hotkeys?.IsRegistered(HotkeyAction.ToggleEditor) == true)
+        if (!showWithoutActivation && _settings.StartInTray && _hotkeys?.IsRegistered(HotkeyAction.ToggleEditor) == true)
             HideEditor(restoreFocus: false);
         else
             ShowEditor(activate: !showWithoutActivation);
@@ -1694,6 +2033,8 @@ internal sealed class MainWindow : Window
             placement.Close();
             return;
         }
+        _wheel?.Finish(select: false);
+        _wheelSettings?.Close();
         _settingsPopup?.Close();
         if (_editorOpen)
             HideEditor(restoreFocus: true);
@@ -1785,6 +2126,8 @@ internal sealed class MainWindow : Window
         try
         {
             _settingsPopup?.Close();
+            _wheelSettings?.Close();
+            _wheel?.Finish(select: false);
             _hudPlacement?.Close();
             if (!await FlushAutosave())
             {
@@ -1795,6 +2138,7 @@ internal sealed class MainWindow : Window
             await _save;
             _mouseRecording?.Dispose();
             _hud?.Hide();
+            _indexHud?.Hide();
             _recordingIndicator?.Close();
             _recordingIndicator = null;
             await StopRuns();
@@ -1803,10 +2147,12 @@ internal sealed class MainWindow : Window
             await SaveSettings(_settingsSave);
             _refresh.Stop();
             _hudRefresh.Stop();
-            _instanceWatch.Stop();
             _hud?.Close();
+            _indexHud?.Close();
             _source?.RemoveHook(HotkeyMessage);
             _hotkeys?.Dispose();
+            _wheelKey?.Dispose();
+            _wheel?.Close();
             _tray?.ContextMenuStrip?.Dispose();
             _tray?.Dispose();
             _clock.Dispose();

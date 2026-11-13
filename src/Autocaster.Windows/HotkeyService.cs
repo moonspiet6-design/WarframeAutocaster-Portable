@@ -9,15 +9,37 @@ public enum HotkeyModifiers : uint { Alt = 1, Control = 2, Shift = 4, Windows = 
 
 public readonly record struct Hotkey(HotkeyModifiers Modifiers, InputKey Key)
 {
-    internal bool IsMouseButton => Key is InputKey.Mouse4 or InputKey.Mouse5;
+    internal bool IsMouse => InputKeys.IsMouse(Key);
+
+    public static HotkeyModifiers ModifierFor(InputKey key) => key switch
+    {
+        InputKey.LeftAlt or InputKey.RightAlt => HotkeyModifiers.Alt,
+        InputKey.LeftCtrl or InputKey.RightCtrl => HotkeyModifiers.Control,
+        InputKey.LeftShift or InputKey.RightShift => HotkeyModifiers.Shift,
+        InputKey.LeftWindows or InputKey.RightWindows => HotkeyModifiers.Windows,
+        _ => 0
+    };
 
     public override string ToString()
     {
         var modifiers = Modifiers;
         string key = Key switch
         {
+            InputKey.MouseLeft => "Left click",
+            InputKey.MouseRight => "Right click",
+            InputKey.MouseMiddle => "Middle click",
             InputKey.Mouse4 => "Mouse 4",
             InputKey.Mouse5 => "Mouse 5",
+            InputKey.WheelUp => "Wheel up",
+            InputKey.WheelDown => "Wheel down",
+            InputKey.LeftAlt => "Left Alt",
+            InputKey.RightAlt => "Right Alt",
+            InputKey.LeftCtrl => "Left Ctrl",
+            InputKey.RightCtrl => "Right Ctrl",
+            InputKey.LeftShift => "Left Shift",
+            InputKey.RightShift => "Right Shift",
+            InputKey.LeftWindows => "Left Windows",
+            InputKey.RightWindows => "Right Windows",
             >= InputKey.D0 and <= InputKey.D9 => ((int)Key - (int)InputKey.D0).ToString(),
             _ => Key.ToString()
         };
@@ -26,7 +48,7 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, InputKey Key)
     }
 }
 
-public enum HotkeyAction { ToggleEditor = 2, RecordMouse = 100, ResetMacroSteps, ToggleRathuumWaveSize, ResetPlayback }
+public enum HotkeyAction { ToggleRun = 1, ToggleEditor, RecordMouse = 100, ResetMacroSteps, ToggleRathuumWaveSize, ResetPlayback }
 
 public sealed class HotkeyService(nint window) : IDisposable
 {
@@ -39,17 +61,35 @@ public sealed class HotkeyService(nint window) : IDisposable
     private const int FirstMacroId = 1000;
     private Native.HookProcedure? _mouseProcedure;
     private nint _mouseHook;
+    private Native.HookProcedure? _keyboardProcedure;
+    private nint _keyboardHook;
+    private readonly HashSet<InputKey> _heldModifiers = [];
+    private Hotkey? _pendingModifier;
 
     public bool IsRegistered(HotkeyAction action) => _registered.ContainsKey((int)action);
 
     // Keep working registrations, if a replacement conflicts.
-    public IReadOnlyList<string> ConfigureGlobals(Hotkey editor, Hotkey? reset, Hotkey? rathuum, Hotkey? playbackReset)
+    public IReadOnlyList<string> Configure(IReadOnlyList<Hotkey> desired) =>
+        Configure(desired, []);
+
+    public IReadOnlyList<string> ConfigureGlobals(IReadOnlyList<Hotkey> desired, Hotkey? reset) =>
+        Configure(desired, [(HotkeyAction.ResetMacroSteps, reset)]);
+
+    public IReadOnlyList<string> ConfigureGlobals(IReadOnlyList<Hotkey> desired, Hotkey? reset, Hotkey? rathuum) =>
+        Configure(desired, [(HotkeyAction.ResetMacroSteps, reset), (HotkeyAction.ToggleRathuumWaveSize, rathuum)]);
+
+    public IReadOnlyList<string> ConfigureGlobals(IReadOnlyList<Hotkey> desired, Hotkey? reset, Hotkey? rathuum, Hotkey? playbackReset) =>
+        Configure(desired, [(HotkeyAction.ResetMacroSteps, reset), (HotkeyAction.ToggleRathuumWaveSize, rathuum),
+            (HotkeyAction.ResetPlayback, playbackReset)]);
+
+    private IReadOnlyList<string> Configure(IReadOnlyList<Hotkey> desired,
+        (HotkeyAction Action, Hotkey? Shortcut)[] optional)
     {
-        (int Id, Hotkey? Key)[] bindings =
-        [
-            ((int)HotkeyAction.ToggleEditor, editor), ((int)HotkeyAction.ResetMacroSteps, reset),
-            ((int)HotkeyAction.ToggleRathuumWaveSize, rathuum), ((int)HotkeyAction.ResetPlayback, playbackReset)
-        ];
+        if (desired.Count != (int)HotkeyAction.ToggleEditor || desired.Distinct().Count() != desired.Count)
+            return ["Assign two distinct keys or shortcuts."];
+
+        var bindings = desired.Select((key, index) => (Id: index + 1, Key: (Hotkey?)key)).ToList();
+        bindings.AddRange(optional.Select(binding => ((int)binding.Action, binding.Shortcut)));
         var assigned = bindings.Select(binding => binding.Key).OfType<Hotkey>().ToArray();
         if (assigned.Any(key => ((uint)key.Modifiers & ~15u) != 0 || !Enum.IsDefined(key.Key)))
             return ["Assign supported keys or shortcuts."];
@@ -78,6 +118,11 @@ public sealed class HotkeyService(nint window) : IDisposable
         foreach (var binding in changed.Reverse())
             if (previous.TryGetValue(binding.Id, out var old) && !TryRegister(binding.Id, old, out string error))
                 errors.Add(error);
+        // On the first launch, still keep any shortcuts that can be registered.
+        if (optional.Length == 0 && previous.Count == 0)
+            foreach (var (id, key) in changed.Reverse())
+                if (key is Hotkey assignedKey)
+                    TryRegister(id, assignedKey, out _);
         return errors;
     }
 
@@ -88,7 +133,11 @@ public sealed class HotkeyService(nint window) : IDisposable
             error = $"Shortcut {key} is already in use.";
             return false;
         }
-        if (key.IsMouseButton ? EnsureMouseHook() : Native.RegisterHotKey(window, id, (uint)key.Modifiers | NoRepeat, (uint)key.Key))
+        bool modifierKey = Hotkey.ModifierFor(key.Key) != 0;
+        bool registered = modifierKey ? EnsureModifierHooks()
+            : key.IsMouse ? EnsureMouseHook()
+            : Native.RegisterHotKey(window, id, (uint)key.Modifiers | NoRepeat, (uint)key.Key);
+        if (registered)
         {
             _registered.Add(id, key);
             error = "";
@@ -103,13 +152,52 @@ public sealed class HotkeyService(nint window) : IDisposable
     {
         if (!_registered.Remove(id, out var shortcut))
             return;
-        if (!shortcut.IsMouseButton)
+        if (!shortcut.IsMouse && Hotkey.ModifierFor(shortcut.Key) == 0)
             Native.UnregisterHotKey(window, id);
-        else if (_mouseHook != 0 && !_registered.Values.Any(key => key.IsMouseButton))
+        if (_keyboardHook != 0 && !_registered.Values.Any(key => Hotkey.ModifierFor(key.Key) != 0))
+            RemoveModifierHook();
+        if (_mouseHook != 0 && _keyboardHook == 0 && !_registered.Values.Any(key => key.IsMouse))
         {
             Native.UnhookWindowsHookEx(_mouseHook);
             _mouseHook = 0;
         }
+    }
+
+    private bool EnsureModifierHooks()
+    {
+        if (_keyboardHook != 0)
+            return true;
+
+        _keyboardProcedure ??= ObserveKeyboard;
+        _keyboardHook = Native.SetWindowsHookExW(13, _keyboardProcedure, Native.GetModuleHandleW(null), 0);
+        if (_keyboardHook == 0)
+            return false;
+        if (EnsureMouseHook())
+        {
+            foreach (InputKey key in ModifierKeys)
+                if (Pressed((int)key))
+                    _heldModifiers.Add(key);
+            return true;
+        }
+
+        int error = Marshal.GetLastPInvokeError();
+        RemoveModifierHook();
+        Marshal.SetLastPInvokeError(error);
+        return false;
+    }
+
+    private static readonly InputKey[] ModifierKeys =
+    [
+        InputKey.LeftAlt, InputKey.RightAlt, InputKey.LeftCtrl, InputKey.RightCtrl,
+        InputKey.LeftShift, InputKey.RightShift, InputKey.LeftWindows, InputKey.RightWindows
+    ];
+
+    private void RemoveModifierHook()
+    {
+        Native.UnhookWindowsHookEx(_keyboardHook);
+        _keyboardHook = 0;
+        _heldModifiers.Clear();
+        _pendingModifier = null;
     }
 
     private bool EnsureMouseHook()
@@ -123,41 +211,103 @@ public sealed class HotkeyService(nint window) : IDisposable
         return _mouseHook != 0;
     }
 
+    private nint ObserveKeyboard(int code, nint message, nint data)
+    {
+        const int injected = 0x10;
+        if (code == 0 && message is 0x0100 or 0x0101 or 0x0104 or 0x0105 &&
+            (Marshal.ReadInt32(data, 8) & injected) == 0)
+        {
+            var key = (InputKey)Marshal.ReadInt32(data);
+            bool down = message is 0x0100 or 0x0104;
+            var modifier = Hotkey.ModifierFor(key);
+            if (modifier == 0)
+            {
+                if (down)
+                    _pendingModifier = null;
+            }
+            else if (down)
+            {
+                if (_heldModifiers.Add(key))
+                {
+                    var shortcut = new Hotkey(ReadModifiers() & ~modifier, key);
+                    _pendingModifier = _registered.ContainsValue(shortcut) ? shortcut : null;
+                }
+            }
+            else
+            {
+                _heldModifiers.Remove(key);
+                if (_pendingModifier is { } shortcut && shortcut.Key == key)
+                {
+                    _pendingModifier = null;
+                    Dispatch(shortcut);
+                }
+            }
+        }
+        return Native.CallNextHookEx(_keyboardHook, code, message, data);
+    }
+
     private nint ObserveMouse(int code, nint message, nint data)
     {
-        const int sideButtonDown = 0x020B;
         const uint injected = 1;
-        if (code == 0 && message == sideButtonDown)
+        if (code == 0 && message is 0x0201 or 0x0204 or 0x0207 or 0x020A or 0x020B or 0x020E)
         {
             var input = Marshal.PtrToStructure<Native.LowLevelMouseInput>(data);
-            var key = (input.MouseData >> 16) switch
+            if ((input.Flags & injected) == 0)
             {
-                1 => InputKey.Mouse4,
-                2 => InputKey.Mouse5,
-                _ => default
-            };
-            if (key != default && (input.Flags & injected) == 0)
-            {
-                HotkeyModifiers modifiers = 0;
-                if (Pressed(0x11)) modifiers |= HotkeyModifiers.Control;
-                if (Pressed(0x10)) modifiers |= HotkeyModifiers.Shift;
-                if (Pressed(0x12)) modifiers |= HotkeyModifiers.Alt;
-                if (Pressed(0x5B) || Pressed(0x5C)) modifiers |= HotkeyModifiers.Windows;
-
-                var shortcut = new Hotkey(modifiers, key);
-                foreach (var (id, configured) in _registered)
+                _pendingModifier = null;
+                var key = MouseKey((int)message, (short)(input.MouseData >> 16));
+                if (key != default && _registered.Values.Any(shortcut => shortcut.Key == key))
                 {
-                    if (configured != shortcut)
-                        continue;
-                    Native.PostMessageW(window, Message, id, ((int)key << 16) | (int)modifiers);
-                    break;
+                    var shortcut = new Hotkey(ReadModifiers(), key);
+                    // A click or scroll in the editor should remain an editor gesture.
+                    if (key is InputKey.Mouse4 or InputKey.Mouse5 || !PointsAtEditor(input.Position))
+                        Dispatch(shortcut);
                 }
             }
         }
         return Native.CallNextHookEx(_mouseHook, code, message, data);
-
-        static bool Pressed(int virtualKey) => (Native.GetAsyncKeyState(virtualKey) & 0x8000) != 0;
     }
+
+    private static InputKey MouseKey(int message, short data) => message switch
+    {
+        0x0201 => InputKey.MouseLeft,
+        0x0204 => InputKey.MouseRight,
+        0x0207 => InputKey.MouseMiddle,
+        0x020A when data > 0 => InputKey.WheelUp,
+        0x020A when data < 0 => InputKey.WheelDown,
+        0x020B when data == 1 => InputKey.Mouse4,
+        0x020B when data == 2 => InputKey.Mouse5,
+        _ => default
+    };
+
+    private static bool PointsAtEditor(Native.Point point)
+    {
+        Native.GetWindowThreadProcessId(Native.WindowFromPoint(point), out uint processId);
+        return processId == (uint)Environment.ProcessId;
+    }
+
+    private void Dispatch(Hotkey shortcut)
+    {
+        foreach (var (id, configured) in _registered)
+        {
+            if (configured != shortcut)
+                continue;
+            Native.PostMessageW(window, Message, id, ((int)shortcut.Key << 16) | (int)shortcut.Modifiers);
+            break;
+        }
+    }
+
+    private static HotkeyModifiers ReadModifiers()
+    {
+        HotkeyModifiers modifiers = 0;
+        if (Pressed(0x11)) modifiers |= HotkeyModifiers.Control;
+        if (Pressed(0x10)) modifiers |= HotkeyModifiers.Shift;
+        if (Pressed(0x12)) modifiers |= HotkeyModifiers.Alt;
+        if (Pressed(0x5B) || Pressed(0x5C)) modifiers |= HotkeyModifiers.Windows;
+        return modifiers;
+    }
+
+    private static bool Pressed(int virtualKey) => (Native.GetAsyncKeyState(virtualKey) & 0x8000) != 0;
 
     public void Clear()
     {

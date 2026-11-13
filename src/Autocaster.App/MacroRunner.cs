@@ -59,7 +59,7 @@ internal sealed class MacroRunner(IInputBackend input, IRunLog log, Action<strin
         _warmup = _warmupOptions is { } options ? new(options, readWaveSize, standby: true) : null;
     }
 
-    internal void Trigger(ScenarioProfile macro, Preferences settings, IWindowTarget? target = null)
+    internal void Trigger(ScenarioProfile macro, Preferences settings, bool scenarioUsesPointer, IWindowTarget? target = null)
     {
         if (macro.Macro?.Enabled != true || _runs.ContainsKey(macro.Id))
             return;
@@ -75,7 +75,7 @@ internal sealed class MacroRunner(IInputBackend input, IRunLog log, Action<strin
             return;
         }
         bool pointer = NeedsPointer(plan);
-        if (pointer && UsesPointer)
+        if (pointer && (scenarioUsesPointer || UsesPointer))
         {
             report($"“{macro.Name}”: another run is using the mouse.");
             return;

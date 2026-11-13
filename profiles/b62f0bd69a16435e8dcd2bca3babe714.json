@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "b62f0bd6-9a16-435e-8dcd-2bca3babe714",
+  "name": "Nokko Index",
+  "mode": "once",
+  "cycleCount": 3,
+  "betweenCycles": {
+    "fixedMs": 0,
+    "random": false,
+    "minMs": 0,
+    "maxMs": 0,
+    "stepMs": 10
+  },
+  "actions": [],
+  "actionGroups": [],
+  "macro": null,
+  "index": {
+    "vote": "extractOnTimer",
+    "extractAfter": {
+      "fixedMs": 32400000,
+      "random": false,
+      "minMs": 600000,
+      "maxMs": 600100,
+      "stepMs": 10
+    },
+    "nokko": {
+      "enabled": true,
+      "mushroom2": "d2",
+      "mushroom1": "d1",
+      "roar": "d3",
+      "fourth": "d4",
+      "operator": "d5",
+      "mushroom2Enabled": true,
+      "mushroom1Enabled": true,
+      "roarEnabled": true,
+      "fourthEnabled": true,
+      "operatorEnabled": true,
+      "mushroom2Count": 2,
+      "mushroom1Count": 3,
+      "mushroomLifetime": {
+        "fixedMs": 31880,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "mushroomLead": {
+        "fixedMs": 0,
+        "random": true,
+        "minMs": 2500,
+        "maxMs": 3500,
+        "stepMs": 10
+      },
+      "castGap": {
+        "fixedMs": 0,
+        "random": true,
+        "minMs": 650,
+        "maxMs": 850,
+        "stepMs": 10
+      },
+      "mushroom2Gap": {
+        "fixedMs": 750,
+        "random": true,
+        "minMs": 1300,
+        "maxMs": 1500,
+        "stepMs": 10
+      },
+      "mushroom1Gap": {
+        "fixedMs": 750,
+        "random": true,
+        "minMs": 950,
+        "maxMs": 1200,
+        "stepMs": 10
+      },
+      "roarLifetime": {
+        "fixedMs": 38250,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "roarExtra": {
+        "fixedMs": 0,
+        "random": true,
+        "minMs": 1500,
+        "maxMs": 2500,
+        "stepMs": 10
+      },
+      "fourthInterval": {
+        "fixedMs": 800,
+        "random": true,
+        "minMs": 950,
+        "maxMs": 1000,
+        "stepMs": 10
+      },
+      "operatorInterval": {
+        "fixedMs": 80000,
+        "random": true,
+        "minMs": 80000,
+        "maxMs": 90000,
+        "stepMs": 10
+      },
+      "operatorStay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 1000,
+        "stepMs": 10
+      }
+    }
+  }
+}

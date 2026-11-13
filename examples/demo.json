@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "7f6eea90-6ccb-49f1-a01f-45f6575de15a",
+  "name": "Example config",
+  "mode": "once",
+  "actions": [
+    {
+      "id": "1ed5c4b5-27b9-440c-ae3b-7fcf02acfbf1",
+      "kind": "keyPress",
+      "name": "Key 1",
+      "key": "d1",
+      "hold": { "fixedMs": 80, "stepMs": 100 }
+    },
+    {
+      "id": "99c13cff-f1ca-4d79-90a1-44667f661a74",
+      "kind": "wait",
+      "name": "Random delay",
+      "delay": { "random": true, "minMs": 2000, "maxMs": 4000, "stepMs": 100 }
+    },
+    {
+      "id": "3bddf9fa-830a-4b14-887c-7ef4f12e2e8a",
+      "kind": "keyPress",
+      "name": "Key 2",
+      "key": "d2",
+      "hold": { "fixedMs": 100, "stepMs": 100 }
+    }
+  ]
+}

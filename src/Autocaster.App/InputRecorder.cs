@@ -22,6 +22,7 @@ internal sealed class InputRecorder
     private Field? _active;
     private Hotkey? _pendingKey;
     private Key _pressedKey;
+    private Hotkey? _pendingModifier;
     private MouseButton? _pressedButton;
 
     internal InputRecorder(Window window, Action<bool> capture, Func<ModifierKeys>? modifiers = null)
@@ -32,6 +33,7 @@ internal sealed class InputRecorder
         window.PreviewKeyUp += OnKeyUp;
         window.PreviewMouseDown += OnMouseDown;
         window.PreviewMouseUp += OnMouseUp;
+        window.PreviewMouseWheel += OnMouseWheel;
         window.Deactivated += (_, _) => Finish();
         window.Closed += (_, _) => Finish();
     }
@@ -80,7 +82,7 @@ internal sealed class InputRecorder
             button.Content = prompt ?? (mode switch
             {
                 Mode.Mouse => "Press a mouse button…",
-                Mode.Shortcut => "Press a key or side button…",
+                Mode.Shortcut => "Press a key, click or scroll…",
                 _ => "Press a key…"
             });
             _capture(true);
@@ -110,26 +112,24 @@ internal sealed class InputRecorder
             return;
         }
 
-        var modifiers = _modifiers();
-        if (active.Mode == Mode.Shortcut)
-        {
-            if (key == Key.Escape && modifiers == ModifierKeys.None)
-            {
-                Finish();
-                return;
-            }
-            if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or
-                Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
-                return;
-        }
         var input = (InputKey)KeyInterop.VirtualKeyFromKey(key);
-        if (!Enum.IsDefined(input))
+        var modifiers = ConvertModifiers(_modifiers());
+        var ownModifier = Hotkey.ModifierFor(input);
+        if (active.Mode == Mode.Shortcut && ownModifier != 0)
+        {
+            _pendingModifier = new(modifiers & ~ownModifier, input);
+            active.Button.Content = _pendingModifier.Value.ToString();
+            return;
+        }
+
+        _pendingModifier = null;
+        if (!InputKeys.IsKeyboard(input))
         {
             active.Button.Content = "Try another key…";
             return;
         }
 
-        _pendingKey = new(active.Mode == Mode.Shortcut ? ConvertModifiers(modifiers) : 0, input);
+        _pendingKey = new(active.Mode == Mode.Shortcut ? modifiers : 0, input);
         _pressedKey = key;
         active.Button.Content = active.Mode == Mode.Shortcut ? _pendingKey.Value.ToString() : Words.Key(input);
     }
@@ -139,28 +139,29 @@ internal sealed class InputRecorder
         if (_active is not { } active)
             return;
         e.Handled = true;
-        if (_pressedButton is null && _pendingKey is { } key && ActualKey(e) == _pressedKey)
-        {
-            active.Keyboard?.Invoke(key);
-            Finish();
-        }
+        if (_pressedButton is not null)
+            return;
+        var released = ActualKey(e);
+        if (_pendingKey is { } key && released == _pressedKey)
+            CommitShortcut(active, key);
+        else if (_pendingModifier is { } modifier && (InputKey)KeyInterop.VirtualKeyFromKey(released) == modifier.Key)
+            CommitShortcut(active, modifier);
     }
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_active is not { } active)
             return;
-        bool sideShortcut = active.Mode == Mode.Shortcut && e.ChangedButton is MouseButton.XButton1 or MouseButton.XButton2;
-        if (active.Mode != Mode.Mouse && !sideShortcut)
+        if (active.Mode == Mode.Key)
             return;
         e.Handled = true;
         if (_pressedButton is not null || _pendingKey is not null)
             return;
         _pressedButton = e.ChangedButton;
-        if (sideShortcut)
+        _pendingModifier = null;
+        if (active.Mode == Mode.Shortcut)
         {
-            var key = e.ChangedButton == MouseButton.XButton1 ? InputKey.Mouse4 : InputKey.Mouse5;
-            _pendingKey = new(ConvertModifiers(_modifiers()), key);
+            _pendingKey = new(ConvertModifiers(_modifiers()), (InputKey)ConvertMouse(e.ChangedButton));
             active.Button.Content = _pendingKey.Value.ToString();
         }
         else
@@ -175,11 +176,28 @@ internal sealed class InputRecorder
         if (_pressedButton == e.ChangedButton)
         {
             if (_pendingKey is { } shortcut)
-                active.Keyboard?.Invoke(shortcut);
+                CommitShortcut(active, shortcut);
             else
+            {
                 active.Mouse?.Invoke(ConvertMouse(e.ChangedButton));
-            Finish();
+                Finish();
+            }
         }
+    }
+
+    private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (_active is not { Mode: Mode.Shortcut } active || e.Delta == 0)
+            return;
+        e.Handled = true;
+        if (_pressedButton is null && _pendingKey is null)
+            CommitShortcut(active, new(ConvertModifiers(_modifiers()), e.Delta > 0 ? InputKey.WheelUp : InputKey.WheelDown));
+    }
+
+    private void CommitShortcut(Field active, Hotkey key)
+    {
+        active.Keyboard?.Invoke(key);
+        Finish();
     }
 
     private void Finish()
@@ -188,6 +206,7 @@ internal sealed class InputRecorder
             return;
         _active = null;
         _pendingKey = null;
+        _pendingModifier = null;
         _pressedButton = null;
         active.Button.Content = active.Display();
         _capture(false);

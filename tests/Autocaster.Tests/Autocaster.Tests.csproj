@@ -11,6 +11,6 @@
     <ProjectReference Include="../../src/Autocaster.Windows/Autocaster.Windows.csproj" />
     <ProjectReference Include="../../src/Autocaster.Infrastructure/Autocaster.Infrastructure.csproj" />
     <Using Include="Xunit" />
-    <None Include="../../profiles/*.json" Link="bundled/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/demo.json" Link="demo.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

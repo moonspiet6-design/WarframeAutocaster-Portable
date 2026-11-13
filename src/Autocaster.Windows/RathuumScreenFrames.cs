@@ -19,6 +19,8 @@ internal sealed class RathuumScreenFrames : IDisposable
     private Bitmap? _score;
     private RathuumDesktopDuplication? _duplication;
     private long _tryDuplicationAfter;
+    private long _lastFreshFrame;
+    private Rectangle _lastClient;
 
     internal string Backend => _duplication is null ? "gdi" : "dxgi";
     internal bool HasTarget { get; private set; }
@@ -39,29 +41,47 @@ internal sealed class RathuumScreenFrames : IDisposable
         if (!HasTarget)
         {
             ResetDuplication();
+            _lastClient = default;
             return false;
+        }
+        if (client != _lastClient)
+        {
+            ResetDuplication();
+            _lastClient = client;
+            _tryDuplicationAfter = 0;
         }
         try
         {
             var feedArea = RathuumHudReader.FeedArea;
             var feed = Scale(feedArea, client);
             var score = Scale(RathuumHudReader.ScoreArea(_compact), client);
-            if (_duplication is not null && !_duplication.Contains(client))
-                ResetDuplication();
-            if (!_useGdi && _duplication is null && Stopwatch.GetTimestamp() >= _tryDuplicationAfter)
+            long now = Stopwatch.GetTimestamp();
+            if (!_useGdi && _duplication is null && now >= _tryDuplicationAfter)
             {
-                _tryDuplicationAfter = Stopwatch.GetTimestamp() + 5 * Stopwatch.Frequency;
+                _tryDuplicationAfter = now + 5 * Stopwatch.Frequency;
                 _duplication = RathuumDesktopDuplication.Open(client);
+                _lastFreshFrame = now;
             }
             using (var canvas = Graphics.FromImage(_atlas))
             {
                 canvas.InterpolationMode = InterpolationMode.Bilinear;
                 if (_duplication is not null)
                 {
-                    if (!_duplication.TryRead(canvas, feed, score, out presented))
-                        return false;
+                    if (_duplication.TryRead(canvas, feed, score, out presented) &&
+                        Stopwatch.GetElapsedTime(presented) <= TimeSpan.FromMilliseconds(100))
+                        _lastFreshFrame = now;
+                    else
+                    {
+                        if (Stopwatch.GetElapsedTime(_lastFreshFrame, now) < TimeSpan.FromMilliseconds(250))
+                            return false;
+
+                        // Keep GDI for this focused window after a DXGI stall. Retrying during a match
+                        // would repeatedly drop frames while desktop duplication is re-established.
+                        ResetDuplication();
+                        _tryDuplicationAfter = long.MaxValue;
+                    }
                 }
-                else
+                if (_duplication is null)
                 {
                     PaintRegion(canvas, ref _feed, feed, new(Point.Empty, feedArea.Size));
                     PaintRegion(canvas, ref _score, score,

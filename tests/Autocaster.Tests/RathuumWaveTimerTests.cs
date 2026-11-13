@@ -191,12 +191,54 @@ public sealed class RathuumWaveTimerTests
         Assert.True(tracker.TryConsume(launch));
     }
 
-    [Fact]
-    public void OldRowsSummonsAndRepeatedNamesCannotArmWithoutAScoreChange()
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(25)]
+    public void FirstKillArmsWithoutAScoreAndPreservesTheDeadlineWhenItReturns(int? recoveredScore)
+    {
+        var options = new RathuumGateOptions { FirstKillOnly = true, StartAtCurrentScore = true }.ToTimingOptions();
+        var tracker = new RathuumLaunchTracker(options, At(0));
+        for (int now = 16; now <= 1264; now += 16)
+        {
+            RathuumFeedEvent[] hits = now == 384 ? [Kill("Garesh", 368, now)] : [];
+            tracker.Observe(At(now), At(now), hits, null, [], true);
+            if (now <= 1232)
+                Assert.Null(tracker.NextLaunch(At(now)));
+        }
+
+        Assert.Null(tracker.State.StartingScore);
+        Assert.Equal(RathuumWaveStatus.Ready, tracker.State.Status);
+        var launch = Assert.IsType<TimeSpan>(tracker.NextLaunch(At(1264)));
+        for (int now = 1280; now < launch.TotalMilliseconds; now += 16)
+        {
+            RathuumFeedEvent[] hits = now == 1312 ? [Kill("Nok", 1296, now)] : [];
+            tracker.Observe(At(now), At(now), hits, recoveredScore, [], true);
+        }
+
+        if (recoveredScore == 25)
+        {
+            Assert.Equal(RathuumWaveStatus.MatchComplete, tracker.State.Status);
+            Assert.False(tracker.TryConsume(launch));
+            return;
+        }
+
+        Assert.Equal(launch, tracker.NextLaunch(launch));
+        Assert.Equal(recoveredScore, tracker.State.StartingScore);
+        Assert.True(tracker.TryConsume(launch));
+        Assert.False(tracker.TryConsume(launch));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(3)]
+    public void OldRowsSummonsAndRepeatedNamesCannotArmWithoutAScoreChange(int? score)
     {
         var options = new RathuumGateOptions { FirstKillOnly = true, StartAtCurrentScore = true }.ToTimingOptions();
         var tracker = new RathuumLaunchTracker(options, At(200));
-        tracker.BeginWave(At(200), 3);
+        if (score is int baseline)
+            tracker.BeginWave(At(200), baseline);
         for (int now = 208; now <= 1808; now += 16)
         {
             RathuumFeedEvent[] hits = now switch
@@ -206,7 +248,7 @@ public sealed class RathuumWaveTimerTests
                 608 => [new(RathuumFeedEventKind.RepeatedName, "Zura", At(592), At(now), 0)],
                 _ => []
             };
-            tracker.Observe(At(now), At(now), hits, 3, [], true);
+            tracker.Observe(At(now), At(now), hits, score, [], true);
         }
 
         Assert.Equal(0, tracker.State.NamedKills);

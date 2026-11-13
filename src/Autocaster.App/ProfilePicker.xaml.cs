@@ -13,7 +13,7 @@ internal partial class ProfilePicker : ComboBox
     }
 
     internal event Action<Guid>? RemoveRequested;
-    internal event Action? AddRequested;
+    internal event Action<bool>? AddRequested;
 
     internal ComboBoxItem Row(Guid id, string name, bool empty)
     {
@@ -28,9 +28,10 @@ internal partial class ProfilePicker : ComboBox
         };
     }
 
-    internal ComboBoxItem AddRow() => new()
+    internal ComboBoxItem AddRow(bool nokko = false) => new()
     {
-        Content = "Add new",
+        Content = nokko ? "Add Nokko Index" : "Add new",
+        Tag = nokko ? true : null,
         ContentTemplate = (DataTemplate)Resources["AddRow"],
         HorizontalContentAlignment = HorizontalAlignment.Stretch,
         FocusVisualStyle = null
@@ -40,7 +41,7 @@ internal partial class ProfilePicker : ComboBox
     {
         e.Handled = true;
         IsDropDownOpen = false;
-        AddRequested?.Invoke();
+        AddRequested?.Invoke(sender is Button button && Ui.Ancestor<ComboBoxItem>(button)?.Tag is true);
     }
 
     private void RemoveClicked(object sender, RoutedEventArgs e)
