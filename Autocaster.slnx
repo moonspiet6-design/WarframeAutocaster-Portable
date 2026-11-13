@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Autocaster.Core/Autocaster.Core.csproj" />
+    <Project Path="src/Autocaster.Windows/Autocaster.Windows.csproj" />
+    <Project Path="src/Autocaster.Infrastructure/Autocaster.Infrastructure.csproj" />
+    <Project Path="src/Autocaster.App/Autocaster.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Autocaster.Tests/Autocaster.Tests.csproj" />
+  </Folder>
+</Solution>

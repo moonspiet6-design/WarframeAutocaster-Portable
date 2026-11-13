@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>WarframeAutocaster.Portable</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Autocaster.Core/Autocaster.Core.csproj" />
+    <ProjectReference Include="../Autocaster.Windows/Autocaster.Windows.csproj" />
+    <ProjectReference Include="../Autocaster.Infrastructure/Autocaster.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

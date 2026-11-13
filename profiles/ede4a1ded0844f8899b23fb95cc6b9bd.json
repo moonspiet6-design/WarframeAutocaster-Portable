@@ -1,0 +1,1219 @@
+{
+  "schemaVersion": 1,
+  "id": "ede4a1de-d084-4f88-99b2-3fb95cc6b9bd",
+  "name": "nidus aol",
+  "mode": "once",
+  "cycleCount": 3,
+  "betweenCycles": {
+    "fixedMs": 0,
+    "random": false,
+    "minMs": 0,
+    "maxMs": 0,
+    "stepMs": 10
+  },
+  "actions": [
+    {
+      "id": "047ae4af-dd58-46b8-8187-15fcf1daf2ac",
+      "kind": "keyPress",
+      "enabled": true,
+      "runWithPrevious": false,
+      "name": "",
+      "comment": "",
+      "key": "space",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 0,
+        "random": true,
+        "minMs": 15,
+        "maxMs": 30,
+        "stepMs": 1
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "988e6b5d-4b17-4843-9c82-d4de154ead46",
+      "kind": "keyPress",
+      "enabled": true,
+      "runWithPrevious": true,
+      "name": "",
+      "comment": "",
+      "key": "backslash",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 0,
+        "random": true,
+        "minMs": 15,
+        "maxMs": 30,
+        "stepMs": 1
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "8061227e-c3a9-49ba-855b-d93e96184a5c",
+      "kind": "startMacroTimer",
+      "enabled": true,
+      "runWithPrevious": true,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "macroTimerDurationMs": 8000,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "ea60c107-18c2-4bb5-8f69-b80464780ee8",
+      "kind": "rathuumKillFeed",
+      "enabled": true,
+      "runWithPrevious": false,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "rathuum": {
+        "waveSize": 5,
+        "leadMs": 550,
+        "firstKillOnly": true,
+        "firstKillLeadMs": 390,
+        "respawnMs": 8000,
+        "timeoutMs": 60000,
+        "startAtCurrentScore": true,
+        "compactHud": true,
+        "scanHz": 120,
+        "fpsGuard": true,
+        "respawnUncertaintyMs": 25,
+        "maxLaunchUncertaintyMs": 100,
+        "scoreDelayMs": 25,
+        "feedDelayMinMs": 200,
+        "feedDelayMaxMs": 550,
+        "lateFeedDelayMs": 2000,
+        "fadeDelayMinMs": 4800,
+        "fadeDelayMaxMs": 5400
+      },
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "0e32ffbf-7ac9-4c30-ba10-5b8032ecfcb7",
+      "kind": "mouseMovement",
+      "enabled": true,
+      "runWithPrevious": false,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [
+        {
+          "offsetMs": 48,
+          "deltaX": -24,
+          "deltaY": -1,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 88,
+          "deltaX": -51,
+          "deltaY": -12,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 128,
+          "deltaX": -103,
+          "deltaY": -14,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 192,
+          "deltaX": -214,
+          "deltaY": -26,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 224,
+          "deltaX": -91,
+          "deltaY": -13,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 320,
+          "deltaX": -200,
+          "deltaY": -26,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 408,
+          "deltaX": -133,
+          "deltaY": -17,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 520,
+          "deltaX": -160,
+          "deltaY": -18,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 696,
+          "deltaX": -206,
+          "deltaY": -21,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 816,
+          "deltaX": -170,
+          "deltaY": -11,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 968,
+          "deltaX": -162,
+          "deltaY": -20,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1184,
+          "deltaX": -124,
+          "deltaY": -27,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1288,
+          "deltaX": -100,
+          "deltaY": -36,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1344,
+          "deltaX": -72,
+          "deltaY": -30,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1808,
+          "deltaX": -69,
+          "deltaY": -38,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 2360,
+          "deltaX": -36,
+          "deltaY": -16,
+          "interpolate": true
+        }
+      ],
+      "mousePointLimit": 20,
+      "mouseMapOrigin": {
+        "x": 14,
+        "y": -1
+      },
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": 10,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "96549a0a-be6f-4ed1-ae27-9e5130bb3135",
+      "kind": "keyPress",
+      "enabled": true,
+      "runWithPrevious": true,
+      "name": "",
+      "comment": "",
+      "key": "d2",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 0,
+        "random": true,
+        "minMs": 15,
+        "maxMs": 30,
+        "stepMs": 1
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "a0c1fe12-343d-4471-b7df-29cd76498fed",
+      "kind": "wait",
+      "enabled": true,
+      "runWithPrevious": false,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 210,
+        "random": false,
+        "minMs": 1000,
+        "maxMs": 1100,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "b4b3fe4c-cfa1-46b7-9823-bd35e9a4bb07",
+      "kind": "mouseMovement",
+      "enabled": true,
+      "runWithPrevious": true,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [
+        {
+          "offsetMs": 8,
+          "deltaX": 2,
+          "deltaY": 0,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 96,
+          "deltaX": 64,
+          "deltaY": 6,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 208,
+          "deltaX": 227,
+          "deltaY": 16,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 352,
+          "deltaX": 253,
+          "deltaY": 25,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 400,
+          "deltaX": 118,
+          "deltaY": 8,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 560,
+          "deltaX": 201,
+          "deltaY": 24,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 688,
+          "deltaX": 162,
+          "deltaY": 14,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 720,
+          "deltaX": 163,
+          "deltaY": 17,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1072,
+          "deltaX": 163,
+          "deltaY": 29,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1200,
+          "deltaX": 184,
+          "deltaY": 36,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1360,
+          "deltaX": 119,
+          "deltaY": 34,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1456,
+          "deltaX": 85,
+          "deltaY": 31,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1624,
+          "deltaX": 70,
+          "deltaY": 35,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 2304,
+          "deltaX": 57,
+          "deltaY": 25,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 3064,
+          "deltaX": 47,
+          "deltaY": 26,
+          "interpolate": true
+        }
+      ],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": 10,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "540d6a9b-40ce-4676-8840-590eac303494",
+      "kind": "larvaDetect",
+      "enabled": true,
+      "runWithPrevious": false,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "larvaTimeoutMs": 2000,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "24c9d8fb-9669-45b6-8cbf-1f939627f56a",
+      "kind": "wait",
+      "enabled": true,
+      "runWithPrevious": false,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 400,
+        "random": false,
+        "minMs": 1000,
+        "maxMs": 1100,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "e83bd543-0602-4e03-925e-72d535a7627d",
+      "kind": "keyPress",
+      "enabled": true,
+      "runWithPrevious": true,
+      "name": "",
+      "comment": "",
+      "key": "d2",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 0,
+        "random": true,
+        "minMs": 15,
+        "maxMs": 30,
+        "stepMs": 1
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "3ef579d4-4d2f-4061-ae7e-160d1c6c9958",
+      "kind": "mouseMovement",
+      "enabled": true,
+      "runWithPrevious": true,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [
+        {
+          "offsetMs": 8,
+          "deltaX": -1,
+          "deltaY": 0,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 280,
+          "deltaX": -4,
+          "deltaY": 14,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 448,
+          "deltaX": -6,
+          "deltaY": 52,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 552,
+          "deltaX": -8,
+          "deltaY": 53,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 712,
+          "deltaX": -27,
+          "deltaY": 72,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 800,
+          "deltaX": -27,
+          "deltaY": 74,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 904,
+          "deltaX": -47,
+          "deltaY": 78,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 992,
+          "deltaX": -44,
+          "deltaY": 57,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1280,
+          "deltaX": -76,
+          "deltaY": 84,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 1528,
+          "deltaX": -66,
+          "deltaY": 81,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 2144,
+          "deltaX": -89,
+          "deltaY": 72,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 2272,
+          "deltaX": -87,
+          "deltaY": 71,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 2448,
+          "deltaX": -77,
+          "deltaY": 61,
+          "interpolate": true
+        },
+        {
+          "offsetMs": 2808,
+          "deltaX": -46,
+          "deltaY": 28,
+          "interpolate": true
+        }
+      ],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": 40,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "0b34078b-debf-4d50-ae25-d1472a5baf46",
+      "kind": "keyPress",
+      "enabled": true,
+      "runWithPrevious": true,
+      "name": "",
+      "comment": "",
+      "key": "d2",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 0,
+        "random": true,
+        "minMs": 15,
+        "maxMs": 30,
+        "stepMs": 1
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "af727c26-5612-44f4-a14e-47ab483d1af9",
+      "kind": "larvaDetect",
+      "enabled": true,
+      "runWithPrevious": false,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "larvaTimeoutMs": 2000,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "d164ec07-c615-4c50-8c1a-424e6efe1dac",
+      "kind": "wait",
+      "enabled": true,
+      "runWithPrevious": false,
+      "name": "",
+      "comment": "",
+      "key": "d1",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 80,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "delay": {
+        "fixedMs": 300,
+        "random": false,
+        "minMs": 1000,
+        "maxMs": 1100,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    },
+    {
+      "id": "efb22201-5157-4117-958a-63cbc1e96a26",
+      "kind": "keyPress",
+      "enabled": true,
+      "runWithPrevious": true,
+      "name": "",
+      "comment": "",
+      "key": "d2",
+      "keys": [
+        "leftCtrl",
+        "d1"
+      ],
+      "button": "left",
+      "wheelDelta": 120,
+      "mousePath": [],
+      "mousePointLimit": 20,
+      "reverseMousePath": false,
+      "varyMousePath": true,
+      "mouseDurationMs": null,
+      "mouseSpeed": 1,
+      "before": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "after": {
+        "fixedMs": 0,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 100
+      },
+      "hold": {
+        "fixedMs": 0,
+        "random": true,
+        "minMs": 15,
+        "maxMs": 30,
+        "stepMs": 1
+      },
+      "delay": {
+        "fixedMs": 1000,
+        "random": false,
+        "minMs": 0,
+        "maxMs": 0,
+        "stepMs": 10
+      },
+      "repeatMode": "count",
+      "repeatCount": 2,
+      "loopCount": 0,
+      "children": []
+    }
+  ],
+  "actionGroups": [
+    {
+      "id": "5c9040f3-cd8f-4c2d-8c86-a0b2087103e6",
+      "name": "kill",
+      "start": 0,
+      "count": 3,
+      "color": 0
+    },
+    {
+      "id": "135c83e4-daf6-4d03-b9cb-cb2470d217e2",
+      "name": "prelarv",
+      "start": 3,
+      "count": 5,
+      "color": 1
+    },
+    {
+      "id": "b73677d2-9ac3-4906-8f82-428deda8ed66",
+      "name": "detect",
+      "start": 8,
+      "count": 3,
+      "color": 3
+    },
+    {
+      "id": "74dc0edf-f731-41a8-a3cd-e269cac742e9",
+      "name": "to stairs",
+      "start": 11,
+      "count": 5,
+      "color": 2
+    }
+  ],
+  "lastRecordedMouseAction": "3ef579d4-4d2f-4061-ae7e-160d1c6c9958",
+  "macro": {
+    "key": "mouse5",
+    "modifiers": 0,
+    "enabled": true,
+    "step": true,
+    "showStepHud": true,
+    "showRathuumWaveSize": true,
+    "stepHudPosition": {
+      "x": 0.5,
+      "y": 0.305240793201133
+    },
+    "arrowPosition": null,
+    "showNextMovement": false,
+    "showTimer": true,
+    "timer": {
+      "durationMs": 30000,
+      "position": {
+        "x": 0.0722475496699391,
+        "y": 0.209272542142776
+      },
+      "fontSize": 22
+    }
+  },
+  "index": null
+}
